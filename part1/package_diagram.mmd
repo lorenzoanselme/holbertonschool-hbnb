@@ -1,0 +1,37 @@
+classDiagram
+    %% Définition des namespaces pour simuler les packages
+    namespace Presentation_Layer {
+        class API
+        class Services
+    }
+
+    namespace Business_Logic_Layer {
+        class User
+        class Place
+        class Review
+        class Amenity
+    }
+
+    namespace Persistence_Layer {
+        class Repositories
+        class Database
+    }
+
+    %% Façade
+    class HBnBFacade
+    <<interface>> HBnBFacade
+
+    %% Relations (avec flèches en pointillés et libellés)
+    Presentation_Layer.API ..> HBnBFacade : "calls / unified interface"
+    Presentation_Layer.Services ..> HBnBFacade : "calls / unified interface"
+    HBnBFacade ..> Business_Logic_Layer.User : "orchestrates use cases"
+    HBnBFacade ..> Business_Logic_Layer.Place : "orchestrates use cases"
+    HBnBFacade ..> Business_Logic_Layer.Review : "orchestrates use cases"
+    HBnBFacade ..> Business_Logic_Layer.Amenity : "orchestrates use cases"
+    HBnBFacade ..> Persistence_Layer.Repositories : "uses repositories"
+    Persistence_Layer.Repositories ..> Persistence_Layer.Database : "CRUD / storage"
+
+    %% Pour indication visuelle des packages/couches
+    note for Presentation_Layer.API "PRESENTATION\n(API & Services)"
+    note for Business_Logic_Layer.User "BUSINESS LOGIC\n(Domain Models)"
+    note for Persistence_Layer.Repositories "PERSISTENCE\n(Repositories & Database)"
