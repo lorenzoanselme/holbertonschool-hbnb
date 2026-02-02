@@ -121,7 +121,7 @@ classDiagram
 
     %% Visual grouping: Layers as subgraphs (simulated using notes)
     %% See notes for each node above for clear layer visual cues
-    ```
+```
 
 The editable Mermaid source for this diagram is available in `package_diagram.mmd` for future modifications.
 
