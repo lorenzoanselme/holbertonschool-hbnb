@@ -117,7 +117,70 @@ This layer encapsulates:
 The class diagram below visualizes the complete structure of the Business Logic Layer, showing all entities,
 their attributes, methods, and relationships:
 
-![Detailed Class Diagram for Business Logic Layer](./class.png)
+```mermaid
+classDiagram
+    direction TB
+
+    class User {
+        +str id
+        +str email
+        +str first_name
+        +str last_name
+        +str password
+        +datetime created_at
+        +datetime updated_at
+        +save()
+        +update(data)
+        +delete()
+        +to_dict()
+    }
+
+    class Place {
+        +str id
+        +str name
+        +str description
+        +str city
+        +int price_by_night
+        +int max_guest
+        +str owner_id
+        +datetime created_at
+        +datetime updated_at
+        +save()
+        +update(data)
+        +delete()
+        +to_dict()
+    }
+
+    class Review {
+        +str id
+        +str text
+        +int rating
+        +str user_id
+        +str place_id
+        +datetime created_at
+        +datetime updated_at
+        +save()
+        +update(data)
+        +delete()
+        +to_dict()
+    }
+
+    class Amenity {
+        +str id
+        +str name
+        +datetime created_at
+        +datetime updated_at
+        +save()
+        +update(data)
+        +delete()
+        +to_dict()
+    }
+
+    User "1" --> "0..*" Place : owns
+    Place "1" --> "0..*" Review : has
+    User "1" --> "0..*" Review : writes
+    Place "0..*" -- "0..*" Amenity : includes
+```
 
 This diagram serves as the blueprint for implementation and helps developers understand the domain model
 without needing to navigate the actual codebase.
@@ -154,9 +217,7 @@ Additional details and implementation specifications will be introduced progress
 
 ## Authors
 
-- **Lorenzo Anselme** – Architecture and design contributions
-- **Lucas Mettetal** – Architecture and design contributions
+- Lorenzo Anselme  
+- Lucas Mettetal  
 
-**Project:** HBnB Evolution – Holberton School  
-**Last Updated:** February 2026  
-**Version:** 1.0
+HBnB Evolution – Holberton School
