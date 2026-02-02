@@ -88,7 +88,40 @@ communication patterns between layers through the Facade pattern. This diagram s
 point for understanding the overall system organization and will guide the detailed design decisions 
 in subsequent sections.
 
-![High-Level Package Diagram](./package_diagram.png)
+```mermaid
+classDiagram
+    %% Direction for better readability
+    direction TB
+
+    %% Presentation Layer
+    class API
+    class Services
+    note for API "PRESENTATION LAYER"
+    API ..> HBnBFacade : "calls / unified interface"
+    Services ..> HBnBFacade : "calls / unified interface"
+
+    %% Central Façade
+    class HBnBFacade
+    <<interface>> HBnBFacade
+    note for HBnBFacade "Façade pattern\nCentral interface"
+
+    %% Domain Layer
+    class Models["Models\n(User, Place, Review, Amenity)"]
+    note for Models "DOMAIN LAYER"
+
+    HBnBFacade ..> Models : "orchestrates use cases"
+
+    %% Persistence Layer
+    class Repositories
+    class Database
+    note for Repositories "PERSISTENCE LAYER"
+
+    Models ..> Repositories : "uses repositories"
+    Repositories ..> Database : "CRUD / storage"
+
+    %% Visual grouping: Layers as subgraphs (simulated using notes)
+    %% See notes for each node above for clear layer visual cues
+    ```
 
 The editable Mermaid source for this diagram is available in `package_diagram.mmd` for future modifications.
 
