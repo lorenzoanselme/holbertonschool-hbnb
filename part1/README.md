@@ -220,6 +220,247 @@ without needing to navigate the actual codebase.
 
 ---
 
+## API Interaction Flow – Sequence Diagrams
+
+### Overview
+
+This section illustrates the dynamic behavior of key use cases through sequence diagrams. Each diagram 
+demonstrates how different components of the system interact to fulfill specific user requests, showing 
+the flow of information across the Presentation, Business Logic, and Persistence layers.
+
+These diagrams complement the static class diagrams by providing a temporal view of the system, helping 
+developers understand:
+- The order of operations for each use case
+- How data flows between layers
+- Validation and error handling strategies
+- Authentication and authorization checkpoints
+
+### 1. User Registration
+
+This sequence diagram illustrates the complete flow of user registration, from the initial API request 
+through validation, persistence, and response. It demonstrates how the system handles duplicate email 
+detection and implements secure password hashing.
+
+**Key Points:**
+- Email uniqueness validation before account creation
+- Password hashing for security (never storing plain text passwords)
+- Clear error handling for duplicate registrations
+- Atomic transaction ensuring data consistency
+
+```mermaid
+sequenceDiagram
+autonumber
+actor User
+participant API as Presentation (AuthController)
+participant BL as Business (AuthService)
+participant Repo as Persistence (UserRepository)
+participant DB as Database
+
+User->>API: POST /auth/register {email, password, ...}
+API->>BL: register(dto)
+
+BL->>BL: validate(dto)
+BL->>Repo: findByEmail(email)
+Repo->>DB: SELECT user WHERE email=?
+DB-->>Repo: user | null
+Repo-->>BL: user | null
+
+alt Email déjà utilisé
+  BL-->>API: error 409 (Email already exists)
+  API-->>User: 409 Conflict
+else Email disponible
+  BL->>BL: hashPassword(password)
+  BL->>Repo: createUser(user)
+  Repo->>DB: INSERT user
+  DB-->>Repo: createdUser(id)
+  Repo-->>BL: createdUser
+
+  BL-->>API: success 201 (user public data)
+  API-->>User: 201 Created
+end
+```
+
+### 2. Place Creation
+
+This sequence diagram shows the authenticated process of creating a new place listing. It highlights 
+the importance of authentication, data validation, and establishing ownership relationships between 
+users and their properties.
+
+**Key Points:**
+- Token-based authentication verification (JWT or similar)
+- Authorization check ensuring only authenticated users can create places
+- Comprehensive validation of place data (name, location, coordinates, pricing)
+- Automatic assignment of the authenticated user as the place owner
+
+```mermaid
+sequenceDiagram
+autonumber
+actor User
+participant API as Presentation (PlaceController)
+participant BL as Business (PlaceService)
+participant Repo as Persistence (PlaceRepository)
+participant DB as Database
+
+User->>API: POST /places (token) {name, address, coords, ...}
+API->>API: authenticate(token)
+
+alt Non authentifié
+  API-->>User: 401 Unauthorized
+else Authentifié
+  API->>BL: createPlace(userId, dto)
+  BL->>BL: validate(dto)
+
+  alt Données invalides
+```
+
+### 3. Review Submission
+
+This sequence diagram demonstrates the complex business logic involved in submitting a review for a place. 
+It shows multiple validation checkpoints and business rules that ensure review integrity and prevent abuse.
+
+**Key Points:**
+- Multi-step validation: authentication, data format, business rules
+- Place existence verification before accepting reviews
+- Duplicate review prevention (one review per user per place)
+- Rating aggregation update maintaining accurate place statistics
+- Transaction management ensuring consistency between review creation and rating updates
+ API-->>User: 400 Bad Request
+  else OK
+    BL->>Repo: create(place with ownerId=userId)
+    Repo->>DB: INSERT place
+    DB-->>Repo: createdPlace(id)
+    Repo-->>BL: createdPlace
+
+    BL-->>API: success 201 (place)
+    API-->>User: 201 Created
+  end
+end
+
+```
+```mermaid
+sequenceDiagram
+autonumber
+actor User
+participant API as Presentation (ReviewController)
+participant BL as Business (ReviewService)
+participant PlaceRepo as Persistence (PlaceRepository)
+participant ReviewRepo as Persistence (ReviewRepository)
+participant DB as Database
+
+User->>API: POST /places/{placeId}/reviews (token) {rating, comment}
+API->>API: authenticate(token)
+
+alt Non authentifié
+  API-->>User: 401 Unauthorized
+else Authentifié
+  API->>BL: submitReview(userId, placeId, dto)
+  BL->>BL: validate(dto) (rating 1..5, length)
+
+  alt Données invalides
+    BL-->>API: error 400 (Validation failed)
+    API-->>User: 400 Bad Request
+  else OK
+    BL->>PlaceRepo: findById(placeId)
+    PlaceRepo->>DB: SELECT place WHERE id=?
+    DB-->>PlaceRepo: place | null
+    PlaceRepo-->>BL: place | null
+
+    alt Place introuvable
+      BL-->>API: error 404 (Place not found)
+      API-->>User: 404 Not Found
+    else Place trouvé
+      BL->>ReviewRepo: findByUserAndPlace(userId, placeId)
+      ReviewRepo->>DB: SELECT review WHERE user_id=? AND place_id=?
+      DB-->>ReviewRepo: review | null
+      ReviewRepo-->>BL: review | null
+
+      alt Avis déjà existant
+        BL-->>API: error 409 (Review already submitted)
+        API-->>User: 409 Conflict
+      else Nouvel avis
+        BL->>ReviewRepo: create(review)
+        ReviewRepo->>DB: INSERT review
+        DB-->>ReviewRepo: createdReview(id)
+        ReviewRepo-->>BL: createdReview
+```
+
+### 4. Place Search and Filtering
+
+This sequence diagram illustrates the public-facing search functionality that allows users to discover 
+places using various filters, geographic queries, and sorting options. This is a key feature for user 
+experience and requires efficient query handling.
+
+**Key Points:**
+- No authentication required (public search)
+- Flexible query parameter validation and normalization
+- Support for multiple filter types: category, full-text search, geographic radius
+- Pagination support for performance and usability
+- Sorting options (by price, rating, distance, relevance)
+- Structured response including results and pagination metadata
+     BL->>PlaceRepo: updateRatingAggregate(placeId)
+        PlaceRepo->>DB: UPDATE place avg_rating, review_count
+        DB-->>PlaceRepo: OK
+        PlaceRepo-->>BL: OK
+
+        BL-->>API: success 201 (review)
+        API-->>User: 201 Created
+      end
+    end
+  end
+end
+
+```
+
+### Design Considerations
+
+These sequence diagrams highlight several architectural decisions:
+
+**Error Handling Strategy**  
+Each diagram demonstrates proper HTTP status code usage and early exit patterns when errors occur. 
+This prevents unnecessary processing and provides clear feedback to clients.
+
+**Layer Separation**  
+Notice how each layer has distinct responsibilities:
+- **Presentation Layer**: Authentication, request validation, response formatting
+- **Business Logic Layer**: Business rules, domain validations, orchestration
+- **Persistence Layer**: Data access, CRUD operations, query optimization
+
+**Security First**  
+Authentication checks occur at the entry point (Presentation Layer) before any business logic executes, 
+following the principle of "fail fast" for security violations.
+
+**Data Consistency**  
+Operations that affect multiple entities (like review submission updating place ratings) are handled 
+atomically to maintain data integrity.
+
+---mermaid
+sequenceDiagram
+autonumber
+actor User
+participant API as Presentation (PlaceController)
+participant BL as Business (PlaceQueryService)
+participant Repo as Persistence (PlaceRepository)
+participant DB as Database
+
+User->>API: GET /places?category=&q=&lat=&lng=&radius=&sort=&page=&size=
+API->>BL: listPlaces(queryParams)
+BL->>BL: validateAndNormalize(queryParams)
+
+alt Paramètres invalides
+  BL-->>API: error 400 (Invalid filters)
+  API-->>User: 400 Bad Request
+else Paramètres OK
+  BL->>Repo: searchPlaces(filters, pagination, sort)
+  Repo->>DB: SELECT places WHERE filters ORDER BY sort LIMIT/OFFSET
+  DB-->>Repo: places[]
+  Repo-->>BL: places[]
+
+  BL-->>API: success 200 (items + pageInfo)
+  API-->>User: 200 OK (places list)
+end
+
+```
+
 ## Scope of This Phase
 
 **Part 1** of the HBnB Evolution project is specifically focused on:
