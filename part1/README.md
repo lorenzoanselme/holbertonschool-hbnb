@@ -249,35 +249,23 @@ detection and implements secure password hashing.
 
 ```mermaid
 sequenceDiagram
-autonumber
 actor User
-participant API as Presentation (AuthController)
-participant BL as Business (AuthService)
-participant Repo as Persistence (UserRepository)
+participant API as API
+participant Service as Business
 participant DB as Database
 
-User->>API: POST /auth/register {email, password, ...}
-API->>BL: register(dto)
-
-BL->>BL: validate(dto)
-BL->>Repo: findByEmail(email)
-Repo->>DB: SELECT user WHERE email=?
-DB-->>Repo: user | null
-Repo-->>BL: user | null
-
-alt Email déjà utilisé
-  BL-->>API: error 409 (Email already exists)
-  API-->>User: 409 Conflict
-else Email disponible
-  BL->>BL: hashPassword(password)
-  BL->>Repo: createUser(user)
-  Repo->>DB: INSERT user
-  DB-->>Repo: createdUser(id)
-  Repo-->>BL: createdUser
-
-  BL-->>API: success 201 (user public data)
-  API-->>User: 201 Created
+User->>API: POST /auth/register
+API->>Service: register(data)
+Service->>DB: check email
+alt email existe
+  Service-->>API: error
+  API-->>User: 409
+else ok
+  Service->>DB: insert user
+  Service-->>API: created
+  API-->>User: 201
 end
+
 ```
 
 ### 2. Place Creation
@@ -294,33 +282,16 @@ users and their properties.
 
 ```mermaid
 sequenceDiagram
-autonumber
 actor User
-participant API as Presentation (PlaceController)
-participant BL as Business (PlaceService)
-participant Repo as Persistence (PlaceRepository)
+participant API as API
+participant Service as Business
 participant DB as Database
 
-User->>API: POST /places (token) {name, address, coords, ...}
-API->>API: authenticate(token)
-
-alt Non authentifié
-  API-->>User: 401 Unauthorized
-else Authentifié
-  API->>BL: createPlace(userId, dto)
-  BL->>BL: validate(dto)
-
-  alt Données invalides
-    BL->>Repo: create(place with ownerId=userId)
-    Repo->>DB: INSERT place
-    DB-->>Repo: createdPlace(id)
-    Repo-->>BL: createdPlace
-
-    BL-->>API: success 201 (place)
-    API-->>User: 201 Created
-  end
-end
-
+User->>API: POST /places (token)
+API->>Service: createPlace(userId, data)
+Service->>DB: insert place
+Service-->>API: created
+API-->>User: 201
 ```
 
 ### 3. Review Submission
@@ -339,62 +310,22 @@ It shows multiple validation checkpoints and business rules that ensure review i
     
 ```mermaid
 sequenceDiagram
-autonumber
 actor User
-participant API as Presentation (ReviewController)
-participant BL as Business (ReviewService)
-participant PlaceRepo as Persistence (PlaceRepository)
-participant ReviewRepo as Persistence (ReviewRepository)
+participant API as API
+participant Service as Business
 participant DB as Database
 
-User->>API: POST /places/{placeId}/reviews (token) {rating, comment}
-API->>API: authenticate(token)
-
-alt Non authentifié
-  API-->>User: 401 Unauthorized
-else Authentifié
-  API->>BL: submitReview(userId, placeId, dto)
-  BL->>BL: validate(dto) (rating 1..5, length)
-
-  alt Données invalides
-    BL-->>API: error 400 (Validation failed)
-    API-->>User: 400 Bad Request
-  else OK
-    BL->>PlaceRepo: findById(placeId)
-    PlaceRepo->>DB: SELECT place WHERE id=?
-    DB-->>PlaceRepo: place | null
-    PlaceRepo-->>BL: place | null
-
-    alt Place introuvable
-      BL-->>API: error 404 (Place not found)
-      API-->>User: 404 Not Found
-    else Place trouvé
-      BL->>ReviewRepo: findByUserAndPlace(userId, placeId)
-      ReviewRepo->>DB: SELECT review WHERE user_id=? AND place_id=?
-      DB-->>ReviewRepo: review | null
-      ReviewRepo-->>BL: review | null
-
-      alt Avis déjà existant
-        BL-->>API: error 409 (Review already submitted)
-        API-->>User: 409 Conflict
-      else Nouvel avis
-        BL->>ReviewRepo: create(review)
-        ReviewRepo->>DB: INSERT review
-        DB-->>ReviewRepo: createdReview(id)
-        ReviewRepo-->>BL: createdReview
-        
-        BL->>PlaceRepo: updateRatingAggregate(placeId)
-        PlaceRepo->>DB: UPDATE place avg_rating, review_count
-        DB-->>PlaceRepo: OK
-        PlaceRepo-->>BL: OK
-
-        BL-->>API: success 201 (review)
-        API-->>User: 201 Created
-      end
-    end
-  end
-end
-
+User->>API: POST /places/{id}/reviews (token)
+API->>Service: addReview(userId, placeId, data)
+Service->>DB: check place
+alt place introuvable
+  Service-->>API: error
+  API-->>User: 404
+else ok
+  Service->>DB: insert review
+  Service-->>API: created
+  API-->>User: 201
+ends
 ```
 
 ### 4. Place Search and Filtering
@@ -436,30 +367,16 @@ atomically to maintain data integrity.
 
 ```mermaid
 sequenceDiagram
-autonumber
 actor User
-participant API as Presentation (PlaceController)
-participant BL as Business (PlaceQueryService)
-participant Repo as Persistence (PlaceRepository)
+participant API as API
+participant Service as Business
 participant DB as Database
 
-User->>API: GET /places?category=&q=&lat=&lng=&radius=&sort=&page=&size=
-API->>BL: listPlaces(queryParams)
-BL->>BL: validateAndNormalize(queryParams)
-
-alt Paramètres invalides
-  BL-->>API: error 400 (Invalid filters)
-  API-->>User: 400 Bad Request
-else Paramètres OK
-  BL->>Repo: searchPlaces(filters, pagination, sort)
-  Repo->>DB: SELECT places WHERE filters ORDER BY sort LIMIT/OFFSET
-  DB-->>Repo: places[]
-  Repo-->>BL: places[]
-
-  BL-->>API: success 200 (items + pageInfo)
-  API-->>User: 200 OK (places list)
-end
-
+User->>API: GET /places?filters
+API->>Service: listPlaces(filters)
+Service->>DB: select places
+Service-->>API: places[]
+API-->>User: 200
 ```
 
 ## Scope of This Phase
