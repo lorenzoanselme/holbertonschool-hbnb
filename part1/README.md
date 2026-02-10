@@ -325,7 +325,7 @@ else ok
   Service->>DB: insert review
   Service-->>API: created
   API-->>User: 201
-ends
+end
 ```
 
 ### 4. Place Search and Filtering
