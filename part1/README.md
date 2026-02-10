@@ -311,6 +311,16 @@ else Authentifié
   BL->>BL: validate(dto)
 
   alt Données invalides
+    BL->>Repo: create(place with ownerId=userId)
+    Repo->>DB: INSERT place
+    DB-->>Repo: createdPlace(id)
+    Repo-->>BL: createdPlace
+
+    BL-->>API: success 201 (place)
+    API-->>User: 201 Created
+  end
+end
+
 ```
 
 ### 3. Review Submission
@@ -326,17 +336,7 @@ It shows multiple validation checkpoints and business rules that ensure review i
 - Transaction management ensuring consistency between review creation and rating updates
  API-->>User: 400 Bad Request
   else OK
-    BL->>Repo: create(place with ownerId=userId)
-    Repo->>DB: INSERT place
-    DB-->>Repo: createdPlace(id)
-    Repo-->>BL: createdPlace
-
-    BL-->>API: success 201 (place)
-    API-->>User: 201 Created
-  end
-end
-
-```
+    
 ```mermaid
 sequenceDiagram
 autonumber
@@ -382,6 +382,19 @@ else Authentifié
         ReviewRepo->>DB: INSERT review
         DB-->>ReviewRepo: createdReview(id)
         ReviewRepo-->>BL: createdReview
+        
+        BL->>PlaceRepo: updateRatingAggregate(placeId)
+        PlaceRepo->>DB: UPDATE place avg_rating, review_count
+        DB-->>PlaceRepo: OK
+        PlaceRepo-->>BL: OK
+
+        BL-->>API: success 201 (review)
+        API-->>User: 201 Created
+      end
+    end
+  end
+end
+
 ```
 
 ### 4. Place Search and Filtering
@@ -397,19 +410,7 @@ experience and requires efficient query handling.
 - Pagination support for performance and usability
 - Sorting options (by price, rating, distance, relevance)
 - Structured response including results and pagination metadata
-     BL->>PlaceRepo: updateRatingAggregate(placeId)
-        PlaceRepo->>DB: UPDATE place avg_rating, review_count
-        DB-->>PlaceRepo: OK
-        PlaceRepo-->>BL: OK
-
-        BL-->>API: success 201 (review)
-        API-->>User: 201 Created
-      end
-    end
-  end
-end
-
-```
+    
 
 ### Design Considerations
 
@@ -433,7 +434,7 @@ following the principle of "fail fast" for security violations.
 Operations that affect multiple entities (like review submission updating place ratings) are handled 
 atomically to maintain data integrity.
 
----mermaid
+```mermaid
 sequenceDiagram
 autonumber
 actor User
