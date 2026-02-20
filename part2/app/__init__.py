@@ -1,0 +1,7 @@
+from flask import Flask
+from app.presentation.api import init_api
+
+def create_app():
+    app = Flask(__name__)
+    init_api(app)
+    return app
