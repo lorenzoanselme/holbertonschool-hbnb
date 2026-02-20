@@ -46,7 +46,6 @@ class InMemoryRepository:
     def __init__(self) -> None:
         self._storage: Dict[str, Any] = {}
 
-    # ---------- Internal helpers ----------
 
     @staticmethod
     def _entity_id(entity: Any) -> str:
@@ -71,7 +70,6 @@ class InMemoryRepository:
                 f"Entity must be an instance of {expected_type.__name__}."
             )
 
-    # ---------- CRUD ----------
 
     def add(self, entity: T, *, expected_type: Optional[Type[Any]] = None) -> T:
         """
@@ -138,12 +136,10 @@ class InMemoryRepository:
 
         entity = self.get_or_404(entity_id)
 
-        # Don't allow id overwrite
         if "id" in data:
             data = {k: v for k, v in data.items() if k != "id"}
 
         for key, value in data.items():
-            # Only set attributes that exist (safer for early phases)
             if hasattr(entity, key):
                 setattr(entity, key, value)
 
@@ -164,7 +160,6 @@ class InMemoryRepository:
         """Remove all entities (useful for tests)."""
         self._storage.clear()
 
-    # ---------- Queries ----------
 
     def get_by_attribute(self, attribute: str, value: Any) -> Optional[Any]:
         """
