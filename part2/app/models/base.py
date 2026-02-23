@@ -1,23 +1,17 @@
-# app/models/basemodel.py
-from __future__ import annotations
-
-from datetime import datetime, timezone
-from uuid import uuid4
-
+import uuid
+from datetime import datetime
 
 class BaseModel:
-    def __init__(self) -> None:
-        self.id = str(uuid4())
-        now = datetime.now(timezone.utc)
-        self.created_at = now
-        self.updated_at = now
+    def __init__(self):
+        self.id = str(uuid.uuid4())
+        self.created_at = datetime.now()
+        self.updated_at = datetime.now()
 
-    def touch(self) -> None:
-        self.updated_at = datetime.now(timezone.utc)
+    def save(self):
+        self.updated_at = datetime.now()
 
-    def base_dict(self) -> dict:
-        return {
-            "id": self.id,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-        }
+    def update(self, data):
+        for key, value in data.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+        self.save()

@@ -1,17 +1,15 @@
-# app/models/amenity.py
-from __future__ import annotations
 from .base import BaseModel
 
 
 class Amenity(BaseModel):
-    def __init__(self, name: str) -> None:
+    def __init__(self, name):
         super().__init__()
+        self.name = name
 
-        if not name or not name.strip():
-            raise ValueError("name is required")
-        self.name = name.strip()
-
-    def to_dict(self) -> dict:
-        d = self.base_dict()
-        d.update({"name": self.name})
-        return d
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }

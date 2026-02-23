@@ -1,45 +1,35 @@
-# app/models/place.py
-from __future__ import annotations
 from .base import BaseModel
 
 
 class Place(BaseModel):
-    def __init__(
-        self,
-        title: str,
-        description: str,
-        price: float,
-        latitude: float,
-        longitude: float,
-        owner_id: str,
-        amenity_ids: list[str] | None = None,
-    ) -> None:
+    def __init__(self, title, description, price, latitude, longitude, owner):
         super().__init__()
+        self.title = title
+        self.description = description
+        self.price = price
+        self.latitude = latitude
+        self.longitude = longitude
+        self.owner = owner
+        self.reviews = []
+        self.amenities = []
 
-        if not title or not title.strip():
-            raise ValueError("title is required")
-        if not owner_id or not owner_id.strip():
-            raise ValueError("owner_id is required")
+    def add_review(self, review):
+        self.reviews.append(review)
 
-        self.title = title.strip()
-        self.description = (description or "").strip()
-        self.price = float(price or 0.0)
-        self.latitude = float(latitude or 0.0)
-        self.longitude = float(longitude or 0.0)
-        self.owner_id = owner_id.strip()
-        self.amenity_ids = [str(x) for x in (amenity_ids or [])]
+    def add_amenity(self, amenity):
+        self.amenities.append(amenity)
 
-    def to_dict(self) -> dict:
-        d = self.base_dict()
-        d.update(
-            {
-                "title": self.title,
-                "description": self.description,
-                "price": self.price,
-                "latitude": self.latitude,
-                "longitude": self.longitude,
-                "owner_id": self.owner_id,
-                "amenity_ids": self.amenity_ids,
-            }
-        )
-        return d
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "price": self.price,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "owner": self.owner,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "reviews": [r.id for r in self.reviews],
+            "amenities": [a.id for a in self.amenities],
+        }
