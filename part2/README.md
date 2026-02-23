@@ -1,15 +1,20 @@
-# HBnB - Part 2: Core Business Logic Implementation
+# HBnB - Part 2: Core Business Logic Layer
 
 ## Project Overview
 
 This part of the HBnB project focuses on implementing the **Business
-Logic Layer**. The goal is to design and implement the core domain
-entities and their relationships while following clean architecture and
-modular design principles.
+Logic Layer** of the application.
 
-The business logic layer is independent from the API (Presentation
-layer) and Persistence layer, and represents the core foundation of the
-application.
+The goal is to design and implement the core domain entities with:
+
+-   UUID-based identification
+-   Timestamp management
+-   Business rule validation using `@property` setters
+-   Proper entity relationships
+-   Clean serialization via `to_dict()` methods
+
+This layer is independent from the API (Presentation layer) and the
+Persistence layer.
 
 ------------------------------------------------------------------------
 
@@ -56,151 +61,114 @@ All entities inherit from `BaseModel`, which provides:
 -   `id` (UUID stored as string)
 -   `created_at`
 -   `updated_at`
--   `save()` method to update timestamps
--   `update(data)` method to dynamically update attributes
+-   `save()` → updates `updated_at`
+-   `update(data)` → updates attributes dynamically (triggers property
+    setters)
 
 ### Why UUID?
 
-UUIDs are used because:
-
--   They ensure global uniqueness
--   They improve security (non-sequential IDs)
--   They support scalability and distributed systems
+-   Guarantees global uniqueness
+-   Prevents predictable sequential IDs
+-   Supports scalability and distributed systems
 
 ------------------------------------------------------------------------
 
-## User
+## Attribute Validation Strategy
 
-Attributes:
+All validation logic is implemented inside the **Business Logic layer**
+using `@property` setters.
 
--   id
--   first_name (required, max 50 characters)
--   last_name (required, max 50 characters)
--   email (required, unique, valid format)
--   is_admin (default: False)
--   created_at
--   updated_at
+This ensures:
 
-Relationship:
+-   Validation at object creation
+-   Validation during attribute updates
+-   Data integrity independent from the API layer
 
--   One user can own multiple places (One-to-Many).
+### Enforced Rules
+
+**User** - `first_name`, `last_name` → required, max 50 characters -
+`email` → required, basic format validation - `is_admin` → must be
+boolean
+
+**Place** - `title` → required, max 100 characters - `price` → must be
+positive - `latitude` → between -90 and 90 - `longitude` → between -180
+and 180 - `owner` → must reference a valid User-like object
+
+**Review** - `text` → required - `rating` → integer between 1 and 5 -
+Stores `place_id` and `user_id`
+
+**Amenity** - `name` → required, max 50 characters
 
 ------------------------------------------------------------------------
 
-## Place
+## Entity Relationships
 
-Attributes:
+### User → Place (One-to-Many)
 
--   id
--   title (required, max 100 characters)
--   description (optional)
--   price (positive float)
--   latitude (-90 to 90)
--   longitude (-180 to 180)
--   owner (User instance)
--   reviews (list)
--   amenities (list)
--   created_at
--   updated_at
+A user can own multiple places.
 
-Relationships:
+### Place → Review (One-to-Many)
 
--   One-to-Many: Place → Review
--   Many-to-Many: Place ↔ Amenity
+A place can have multiple reviews.
 
-When serialized to dictionary, only related entity IDs are returned:
+### Place ↔ Amenity (Many-to-Many)
+
+A place can have multiple amenities.
+
+------------------------------------------------------------------------
+
+## Serialization Strategy
+
+Objects are converted using `to_dict()`.
+
+To keep responses API-ready:
+
+-   Related objects are represented by their IDs
+-   No nested object serialization
+-   Ensures clean JSON output
+
+Example:
 
 ``` python
-"reviews": [r.id for r in self.reviews],
+"reviews": [r.id for r in self.reviews]
 "amenities": [a.id for a in self.amenities]
+"owner": self.owner.id
 ```
-
-------------------------------------------------------------------------
-
-## Review
-
-Attributes:
-
--   id
--   text (required)
--   rating (integer between 1 and 5)
--   place (Place instance)
--   user (User instance)
--   created_at
--   updated_at
-
-Each review belongs to:
-
--   One user
--   One place
-
-------------------------------------------------------------------------
-
-## Amenity
-
-Attributes:
-
--   id
--   name (required, max 50 characters)
--   created_at
--   updated_at
-
-Used in a many-to-many relationship with Place.
-
-------------------------------------------------------------------------
-
-## Relationships Summary
-
-User └── owns → Place (1:N)
-
-Place ├── has → Review (1:N) └── has → Amenity (M:N)
-
-Review ├── belongs to → User └── belongs to → Place
 
 ------------------------------------------------------------------------
 
 ## Testing
 
-Basic tests were implemented to validate:
+Independent test files validate:
 
 -   Object creation
 -   Default values
+-   Validation rules
 -   Relationship integrity
--   Adding reviews and amenities
--   UUID generation and timestamps
 
-Example:
-
-``` python
-owner = User(first_name="Alice", last_name="Smith", email="alice@example.com")
-place = Place(title="Cozy Apartment", description="Nice place", price=100,
-              latitude=37.7749, longitude=-122.4194, owner=owner)
-
-review = Review(text="Great stay!", rating=5, place=place, user=owner)
-place.add_review(review)
-
-assert len(place.reviews) == 1
-```
+All tests pass successfully after implementing property-based
+validation.
 
 ------------------------------------------------------------------------
 
 ## Outcome
 
-The business logic layer is now fully implemented and ready to be
-integrated with the API and persistence layers in the next stages.
+The Business Logic layer now provides:
 
-This implementation ensures:
+-   Clean OOP architecture
+-   Strong data validation
+-   Proper relationship management
+-   API-ready serialization
+-   Compatibility with provided Facade and Repository layers
 
--   Clean object-oriented design
--   Proper entity relationships
--   UUID-based identification
--   Timestamp management
--   Data consistency across models
+The project is now ready for API integration and persistence handling in
+the next stages.
 
 ------------------------------------------------------------------------
 
-## Author
+## Authors
 
-Lorenzo Anselme
+Lorenzo Anselme\
 Lucas Mettetal
-Holberton School -- Web & Web Mobile Foundations
+
+Holberton School
