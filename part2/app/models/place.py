@@ -13,10 +13,92 @@ class Place(BaseModel):
         self.reviews = []
         self.amenities = []
 
+    @property
+    def title(self):
+        return self._title
+
+    @title.setter
+    def title(self, value):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("title is required")
+        v = value.strip()
+        if len(v) > 100:
+            raise ValueError("title must be at most 100 characters")
+        self._title = v
+
+    @property
+    def description(self):
+        return self._description
+
+    @description.setter
+    def description(self, value):
+        if value is None:
+            self._description = ""
+            return
+        if not isinstance(value, str):
+            raise ValueError("description must be a string")
+        self._description = value
+
+    @property
+    def price(self):
+        return self._price
+
+    @price.setter
+    def price(self, value):
+        if not isinstance(value, (int, float)):
+            raise ValueError("price must be a number")
+        v = float(value)
+        if v <= 0:
+            raise ValueError("price must be a positive value")
+        self._price = v
+
+    @property
+    def latitude(self):
+        return self._latitude
+
+    @latitude.setter
+    def latitude(self, value):
+        if not isinstance(value, (int, float)):
+            raise ValueError("latitude must be a number")
+        v = float(value)
+        if v < -90.0 or v > 90.0:
+            raise ValueError("latitude must be between -90.0 and 90.0")
+        self._latitude = v
+
+    @property
+    def longitude(self):
+        return self._longitude
+
+    @longitude.setter
+    def longitude(self, value):
+        if not isinstance(value, (int, float)):
+            raise ValueError("longitude must be a number")
+        v = float(value)
+        if v < -180.0 or v > 180.0:
+            raise ValueError("longitude must be between -180.0 and 180.0")
+        self._longitude = v
+
+    @property
+    def owner(self):
+        return self._owner
+
+    @owner.setter
+    def owner(self, value):
+        owner_id = getattr(value, "id", None)
+        if not isinstance(owner_id, str) or not owner_id.strip():
+            raise ValueError("owner must be a User-like object with a valid id")
+        self._owner = value
+
     def add_review(self, review):
+        if getattr(review, "id", None) is None:
+            raise ValueError("review must be a Review-like object")
+        if getattr(review, "place_id", None) != self.id:
+            raise ValueError("Review does not belong to this place")
         self.reviews.append(review)
 
     def add_amenity(self, amenity):
+        if getattr(amenity, "id", None) is None:
+            raise ValueError("amenity must be an Amenity-like object")
         self.amenities.append(amenity)
 
     def to_dict(self):
@@ -27,7 +109,7 @@ class Place(BaseModel):
             "price": self.price,
             "latitude": self.latitude,
             "longitude": self.longitude,
-            "owner": self.owner,
+            "owner": self.owner.id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "reviews": [r.id for r in self.reviews],
