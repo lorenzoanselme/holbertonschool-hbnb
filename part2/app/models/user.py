@@ -1,10 +1,9 @@
 from .base import BaseModel
 
 
-@dataclass
 class User(BaseModel):
-    def __init__(self, first_name, last_name, email, is_admin):
-        super().__init__()
+    def init(self, first_name, last_name, email, is_admin):
+        super().init()
         self.first_name = first_name
         self.last_name = last_name
         self.email = email
@@ -19,3 +18,4 @@ class User(BaseModel):
             "created_at": self.created_at.isoformat(),
             "update_at": self.update_at.isoformat(),
         }
+
