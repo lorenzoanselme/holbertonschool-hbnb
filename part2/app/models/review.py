@@ -38,7 +38,7 @@ class Review(BaseModel):
     @property
     def place(self):
         return self._place
-    
+
     @place.setter
     def place(self, value):
         if not isinstance(value, Place):
