@@ -17,9 +17,10 @@ class User(BaseModel):
     def first_name(self, value):
         if not isinstance(value, str) or not value.strip():
             raise ValueError("first_name is required")
-        if len(value.strip()) > 50:
+        v = value.strip()
+        if len(v) > 50:
             raise ValueError("first_name must be at most 50 characters")
-        self._first_name = value.strip()
+        self._first_name = v
 
     @property
     def last_name(self):
@@ -29,9 +30,10 @@ class User(BaseModel):
     def last_name(self, value):
         if not isinstance(value, str) or not value.strip():
             raise ValueError("last_name is required")
-        if len(value.strip()) > 50:
+        v = value.strip()
+        if len(v) > 50:
             raise ValueError("last_name must be at most 50 characters")
-        self._last_name = value.strip()
+        self._last_name = v
 
     @property
     def email(self):

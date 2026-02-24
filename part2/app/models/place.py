@@ -1,4 +1,5 @@
 from .base import BaseModel
+from .user import User
 
 
 class Place(BaseModel):
@@ -84,23 +85,13 @@ class Place(BaseModel):
 
     @owner.setter
     def owner(self, value):
-        owner_id = getattr(value, "id", None)
-        if not isinstance(owner_id, str) or not owner_id.strip():
-            raise ValueError(
-                "owner must be a User-like object with a valid id"
-            )
-        self._owner = value
+        if not isinstance(value, User):
+            raise ValueError("owner must be an User instance")
 
     def add_review(self, review):
-        if getattr(review, "id", None) is None:
-            raise ValueError("review must be a Review-like object")
-        if getattr(review, "place_id", None) != self.id:
-            raise ValueError("Review does not belong to this place")
         self.reviews.append(review)
 
     def add_amenity(self, amenity):
-        if getattr(amenity, "id", None) is None:
-            raise ValueError("amenity must be an Amenity-like object")
         self.amenities.append(amenity)
 
     def to_dict(self):

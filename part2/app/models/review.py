@@ -1,34 +1,15 @@
 from .base import BaseModel
+from .place import Place
+from .user import User
 
 
 class Review(BaseModel):
-    def __init__(
-        self,
-        text,
-        rating,
-        place_id=None,
-        user_id=None,
-        place=None,
-        user=None,
-    ):
-        """
-        You can create a Review using either:
-        - place_id + user_id (strings)
-        OR
-        - place + user (objects that have an 'id' attribute)
-        """
+    def __init__(self, text, rating, place, user):
         super().__init__()
-
         self.text = text
         self.rating = rating
-
-        if place is not None:
-            place_id = getattr(place, "id", None)
-        if user is not None:
-            user_id = getattr(user, "id", None)
-
-        self.place_id = place_id
-        self.user_id = user_id
+        self.place = place
+        self.user = user
 
     @property
     def text(self):
@@ -36,8 +17,10 @@ class Review(BaseModel):
 
     @text.setter
     def text(self, value):
-        if not isinstance(value, str) or not value.strip():
+        if not value:
             raise ValueError("text is required")
+        if not isinstance(value, str):
+            raise ValueError("text must be a string")
         self._text = value.strip()
 
     @property
@@ -53,35 +36,32 @@ class Review(BaseModel):
         self._rating = value
 
     @property
-    def place_id(self):
-        return self._place_id
-
-    @place_id.setter
-    def place_id(self, value):
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(
-                "place_id is required and must be a non-empty string")
-        self._place_id = value.strip()
+    def place(self):
+        return self._place
+    
+    @place.setter
+    def place(self, value):
+        if not isinstance(value, Place):
+            raise ValueError("Place must be a Place instance")
+        self._place = value
 
     @property
-    def user_id(self):
-        return self._user_id
+    def user(self):
+        return self._user
 
-    @user_id.setter
-    def user_id(self, value):
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(
-                "user_id is required and must be a non-empty string"
-            )
-        self._user_id = value.strip()
+    @user.setter
+    def user(self, value):
+        if not isinstance(value, User):
+            raise ValueError("user must be a User instance")
+        self._user = value
 
     def to_dict(self):
         return {
             "id": self.id,
             "text": self.text,
             "rating": self.rating,
-            "place_id": self.place_id,
-            "user_id": self.user_id,
+            "place": self.place,
+            "user": self.user,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }

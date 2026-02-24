@@ -1,5 +1,7 @@
 Python cache
 
+.pyc
+
 pycache/ .py[cod] $py.class
 
 Virtual environments
