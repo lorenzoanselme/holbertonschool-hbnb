@@ -2,7 +2,15 @@ from .base import BaseModel
 
 
 class Review(BaseModel):
-    def __init__(self, text, rating, place_id=None, user_id=None, place=None, user=None):
+    def __init__(
+        self,
+        text,
+        rating,
+        place_id=None,
+        user_id=None,
+        place=None,
+        user=None,
+    ):
         """
         You can create a Review using either:
         - place_id + user_id (strings)
@@ -51,7 +59,8 @@ class Review(BaseModel):
     @place_id.setter
     def place_id(self, value):
         if not isinstance(value, str) or not value.strip():
-            raise ValueError("place_id is required and must be a non-empty string")
+            raise ValueError(
+                "place_id is required and must be a non-empty string")
         self._place_id = value.strip()
 
     @property
@@ -61,7 +70,9 @@ class Review(BaseModel):
     @user_id.setter
     def user_id(self, value):
         if not isinstance(value, str) or not value.strip():
-            raise ValueError("user_id is required and must be a non-empty string")
+            raise ValueError(
+                "user_id is required and must be a non-empty string"
+            )
         self._user_id = value.strip()
 
     def to_dict(self):

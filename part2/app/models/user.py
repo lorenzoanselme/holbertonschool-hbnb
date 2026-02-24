@@ -38,7 +38,7 @@ class User(BaseModel):
         return self._email
 
     @email.setter
-    def email(self,value):
+    def email(self, value):
         if not isinstance(value, str) or not value.strip():
             raise ValueError("email is required")
         v = value.strip()

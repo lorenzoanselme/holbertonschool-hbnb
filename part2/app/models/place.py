@@ -86,7 +86,9 @@ class Place(BaseModel):
     def owner(self, value):
         owner_id = getattr(value, "id", None)
         if not isinstance(owner_id, str) or not owner_id.strip():
-            raise ValueError("owner must be a User-like object with a valid id")
+            raise ValueError(
+                "owner must be a User-like object with a valid id"
+            )
         self._owner = value
 
     def add_review(self, review):
