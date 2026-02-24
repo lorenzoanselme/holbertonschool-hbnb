@@ -50,7 +50,7 @@ class HBnBFacade:
     def get_amenity(self, amenity_id):
         return self.amenity_repo.get(amenity_id)
 
-    def get_all_amenitiess(self):
+    def get_all_amenities(self):
         return self.amenity_repo.get_all()
 
     def update_amenity(self, amenity_id, amenity_data):

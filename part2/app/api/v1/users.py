@@ -1,7 +1,8 @@
 # app/api/v1/users.py
 from flask import request
 from flask_restx import Namespace, Resource, fields
-from app.services import facade
+from app.services.facade import HBnBFacade
+facade = HBnBFacade()
 
 api = Namespace('users', description='User operations')
 
@@ -41,6 +42,10 @@ class UserList(Resource):
             'last_name': new_user.last_name,
             'email': new_user.email
         }, 201
+
+    def get(self):
+        users = facade.get_all_users()
+        return [u.to_dict() for u in users], 200
 
 
 @api.route("/<string:user_id>")
