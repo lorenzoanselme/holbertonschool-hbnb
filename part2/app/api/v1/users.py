@@ -1,49 +1,70 @@
 # app/api/v1/users.py
 from flask import request
-from flask_restx import Namespace, Resource
+from flask_restx import Namespace, Resource, fields
+from app.services.facade import HBnBFacade
+facade = HBnBFacade()
 
-from app.services.facade import (
-    HBnBFacade,
-    NotFoundError,
-    ValidationError,
-    ConflictError,
-)
+api = Namespace('users', description='User operations')
 
-api = Namespace("users", path="/users", description="Users endpoints")
-facade = HBnBFacade()  # NOTE: pour dev. Idéalement singleton global partagé.
+# Define the user model for input validation and documentation
+user_model = api.model('User', {
+    'first_name': fields.String(
+        required=True, description='First name of the user'
+    ),
+    'last_name': fields.String(
+        required=True, description='Last name of the user'
+    ),
+    'email': fields.String(
+        required=True, description='Email of the user'
+    )
+})
 
 
-@api.route("")
-class UsersList(Resource):
-    def get(self):
-        return facade.list_users(), 200
-
+@api.route('/')
+class UserList(Resource):
+    @api.expect(user_model, validate=True)
+    @api.response(201, 'User successfully created')
+    @api.response(400, 'Email already registered')
+    @api.response(400, 'Invalid input data')
     def post(self):
-        try:
-            data = request.get_json(force=True) or {}
-            user = facade.create_user(data)
-            return user, 201
-        except ValidationError as e:
-            return {"error": str(e)}, 400
-        except ConflictError as e:
-            return {"error": str(e)}, 409
+        """Register a new user"""
+        user_data = api.payload
+
+        # Simulate email uniqueness check
+        existing_user = facade.get_user_by_email(user_data['email'])
+        if existing_user:
+            return {'error': 'Email already registered'}, 400
+
+        new_user = facade.create_user(user_data)
+        return {
+            'id': new_user.id,
+            'first_name': new_user.first_name,
+            'last_name': new_user.last_name,
+            'email': new_user.email
+        }, 201
+
+    def get(self):
+        users = facade.get_all_users()
+        return [u.to_dict() for u in users], 200
 
 
 @api.route("/<string:user_id>")
 class UsersItem(Resource):
     def get(self, user_id):
-        try:
-            return facade.get_user(user_id), 200
-        except NotFoundError as e:
-            return {"error": str(e)}, 404
+        user = facade.get_user(user_id)
+        if not user:
+            return {"error": "User not found"}, 404
+        return user.to_dict(), 200
 
     def put(self, user_id):
+        data = request.get_json(force=True) or {}
+
         try:
-            data = request.get_json(force=True) or {}
-            return facade.update_user(user_id, data), 200
-        except NotFoundError as e:
-            return {"error": str(e)}, 404
-        except ValidationError as e:
+            user = facade.update_user(user_id, data)
+        except ValueError as e:
             return {"error": str(e)}, 400
-        except ConflictError as e:
-            return {"error": str(e)}, 409
+
+        if not user:
+            return {"error": "User not found"}, 404
+
+        return user.to_dict(), 200
