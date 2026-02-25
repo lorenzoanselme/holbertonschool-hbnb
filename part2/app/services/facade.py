@@ -60,9 +60,31 @@ class HBnBFacade:
 
     # Place
     def create_place(self, place_data):
-        # Placeholder for logic to create a place, including
-        # validation for price, latitude, and longitude
-        place = place(**place_data)
+        owner_id = place_data.get("owner_id")
+        owner = self.get_user(owner_id)
+        if not owner:
+            raise ValueError("Owner not found")
+
+        amenity_ids = place_data.get("amenities", [])
+        amenities = []
+        for amenity_id in amenity_ids:
+            amenity = self.get_amenity(amenity_id)
+            if not amenity:
+                raise ValueError("Amenity not found")
+            amenities.append(amenity)
+
+        place = Place(
+            title=place_data["title"],
+            description=place_data.get("description", ""),
+            price=place_data["price"],
+            latitude=place_data["latitude"],
+            longitude=place_data["longitude"],
+            owner=owner,
+        )
+
+        for amenity in amenities:
+            place.add_amenity(amenity)
+
         self.place_repo.add(place)
         return place
 
@@ -76,19 +98,53 @@ class HBnBFacade:
         return self.place_repo.get_all()
 
     def update_place(self, place_id, place_data):
-        # Placeholder for logic to update a place
         place = self.place_repo.get(place_id)
         if not place:
             return None
-        self.place_repo.update(place_id, place_data)
+
+        updated_data = dict(place_data)
+
+        if "owner_id" in updated_data:
+            owner = self.get_user(updated_data["owner_id"])
+            if not owner:
+                raise ValueError("Owner not found")
+            updated_data["owner"] = owner
+            del updated_data["owner_id"]
+
+        if "amenities" in updated_data:
+            amenities = []
+            for amenity_id in updated_data["amenities"]:
+                amenity = self.get_amenity(amenity_id)
+                if not amenity:
+                    raise ValueError("Amenity not found")
+                amenities.append(amenity)
+            place.amenities = amenities
+            del updated_data["amenities"]
+
+        self.place_repo.update(place_id, updated_data)
         return place
 
     # Review
     def create_review(self, review_data):
-        # Placeholder for logic to create a review, including
-        # validation for user_id, place_id, and rating
-        review = review(**review_data)
+        user_id = review_data.get("user_id")
+        place_id = review_data.get("place_id")
+
+        user = self.get_user(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        place = self.get_place(place_id)
+        if not place:
+            raise ValueError("Place not found")
+
+        review = Review(
+            text=review_data["text"],
+            rating=review_data["rating"],
+            place=place,
+            user=user,
+        )
         self.review_repo.add(review)
+        place.add_review(review)
         return review
 
     def get_review(self, review_id):
@@ -100,14 +156,29 @@ class HBnBFacade:
         return self.review_repo.get_all()
 
     def get_reviews_by_place(self, place_id):
-        # Placeholder for logic to retrieve all reviews for a
-        # specific place
         return [r for r in self.review_repo.get_all()
-                if r.place_id == place_id]
+                if r.place.id == place_id]
 
     def update_review(self, review_id, review_data):
-        # Placeholder for logic to update a review
         review = self.review_repo.get(review_id)
         if not review:
             return None
-        self.review_repo.update(review_id, review_data)
+
+        updated_data = {
+            key: value for key, value in review_data.items()
+            if key in ["text", "rating"]
+        }
+
+        self.review_repo.update(review_id, updated_data)
+        return review
+
+    def delete_review(self, review_id):
+        review = self.review_repo.get(review_id)
+        if not review:
+            return False
+
+        self.review_repo.delete(review_id)
+        review.place.reviews = [
+            r for r in review.place.reviews if r.id != review_id
+        ]
+        return True

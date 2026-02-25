@@ -60,8 +60,8 @@ class Review(BaseModel):
             "id": self.id,
             "text": self.text,
             "rating": self.rating,
-            "place": self.place,
-            "user": self.user,
+            "place": self.place.id,
+            "user": self.user.id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
