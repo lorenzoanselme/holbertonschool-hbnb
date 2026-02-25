@@ -87,6 +87,7 @@ class Place(BaseModel):
     def owner(self, value):
         if not isinstance(value, User):
             raise ValueError("owner must be an User instance")
+        self._owner = value
 
     def add_review(self, review):
         self.reviews.append(review)
