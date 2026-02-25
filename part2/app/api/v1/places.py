@@ -1,23 +1,10 @@
-from flask_restx import Namespace, Resource, fields
 from flask import request
+from flask_restx import Namespace, Resource, fields
 from app.services import facade
 
 api = Namespace('places', description='Place operations')
 
-# Define the models for related entities
-amenity_model = api.model('PlaceAmenity', {
-    'id': fields.String(description='Amenity ID'),
-    'name': fields.String(description='Name of the amenity')
-})
-
-user_model = api.model('PlaceUser', {
-    'id': fields.String(description='User ID'),
-    'first_name': fields.String(description='First name of the owner'),
-    'last_name': fields.String(description='Last name of the owner'),
-    'email': fields.String(description='Email of the owner')
-})
-
-# Define the place model for input validation and documentation
+# Create model (required fields)
 place_model = api.model('Place', {
     'title': fields.String(required=True, description='Title of the place'),
     'description': fields.String(description='Description of the place'),
@@ -30,14 +17,25 @@ place_model = api.model('Place', {
         required=True,
         description='Longitude of the place'
     ),
-    'owner_id': fields.String(
-        required=True,
-        description='ID of the owner'
-    ),
+    'owner_id': fields.String(required=True, description='ID of the owner'),
     'amenities': fields.List(
         fields.String,
         required=True,
-        description="List of amenities ID's"
+        description="List of amenities IDs"
+    )
+})
+
+# Update model (ALL optional -> allows partial updates)
+place_update_model = api.model('PlaceUpdate', {
+    'title': fields.String(description='Title of the place'),
+    'description': fields.String(description='Description of the place'),
+    'price': fields.Float(description='Price per night'),
+    'latitude': fields.Float(description='Latitude of the place'),
+    'longitude': fields.Float(description='Longitude of the place'),
+    'owner_id': fields.String(description='ID of the owner'),
+    'amenities': fields.List(
+        fields.String,
+        description="List of amenities IDs"
     )
 })
 
@@ -51,11 +49,10 @@ class PlaceList(Resource):
         """Register a new place"""
         place_data = api.payload
         try:
-            new_place = facade.create_place(place_data)
+            place = facade.create_place(place_data)
+            return place.to_dict(), 201
         except ValueError as e:
             return {'error': str(e)}, 400
-
-        return new_place.to_dict(), 201
 
     @api.response(200, 'List of places retrieved successfully')
     def get(self):
@@ -64,7 +61,7 @@ class PlaceList(Resource):
         return [p.to_dict() for p in places], 200
 
 
-@api.route('/<place_id>')
+@api.route('/<string:place_id>')
 class PlaceResource(Resource):
     @api.response(200, 'Place details retrieved successfully')
     @api.response(404, 'Place not found')
@@ -75,19 +72,19 @@ class PlaceResource(Resource):
             return {'error': 'Place not found'}, 404
         return place.to_dict(), 200
 
-    @api.expect(place_model, validate=True)
+    @api.expect(place_update_model, validate=True)
     @api.response(200, 'Place updated successfully')
     @api.response(404, 'Place not found')
     @api.response(400, 'Invalid input data')
     def put(self, place_id):
         """Update a place's information"""
-        place_data = request.get_json(force=True) or {}
+        data = request.get_json(force=True) or {}
         try:
-            updated_place = facade.update_place(place_id, place_data)
+            updated = facade.update_place(place_id, data)
         except ValueError as e:
             return {'error': str(e)}, 400
 
-        if not updated_place:
+        if not updated:
             return {'error': 'Place not found'}, 404
 
-        return updated_place.to_dict(), 200
+        return updated.to_dict(), 200

@@ -1,7 +1,6 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request
-from app.services.facade import HBnBFacade
-facade = HBnBFacade()
+from app.services import facade
 
 api = Namespace('amenities', description='Amenity operations')
 
@@ -19,13 +18,21 @@ class AmenityList(Resource):
     def post(self):
         """Register a new amenity"""
         # Placeholder for the logic to register a new amenity
-        pass
+        data = request.get_json(force=True) or {}
+
+        try:
+            amenity = facade.create_amenity(data)
+        except ValueError as e:
+            return {"error": str(e)}, 400
+
+        return amenity.to_dict(), 201
 
     @api.response(200, 'List of amenities retrieved successfully')
     def get(self):
         """Retrieve a list of all amenities"""
         # Placeholder for logic to return a list of all amenities
-        pass
+        amenities = facade.get_all_amenities()
+        return [a.to_dict() for a in amenities], 200
 
 
 @api.route('/<amenity_id>')
@@ -35,7 +42,10 @@ class AmenityResource(Resource):
     def get(self, amenity_id):
         """Get amenity details by ID"""
         # Placeholder for the logic to retrieve an amenity by ID
-        pass
+        amenity = facade.get_amenity(amenity_id)
+        if not amenity:
+            return {"error": "Amenity not found"}, 404
+        return amenity.to_dict(), 200
 
     @api.expect(amenity_model, validate=True)
     @api.response(200, 'Amenity updated successfully')
@@ -44,4 +54,14 @@ class AmenityResource(Resource):
     def put(self, amenity_id):
         """Update an amenity's information"""
         # Placeholder for the logic to update an amenity by ID
-        pass
+        data = request.get_json(force=True) or {}
+
+        try:
+            amenity = facade.update_amenity(amenity_id, data)
+        except ValueError as e:
+            return {"error": str(e)}, 400
+
+        if not amenity:
+            return {"error": "Amenity not found"}, 404
+
+        return amenity.to_dict(), 200
