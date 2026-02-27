@@ -1,174 +1,185 @@
-# HBnB - Part 2: Core Business Logic Layer
+# HBnB - Part 2: Business Logic + API REST
 
-## Project Overview
+## Vue d'ensemble
 
-This part of the HBnB project focuses on implementing the **Business
-Logic Layer** of the application.
+La partie 2 du projet **HBnB** implémente:
 
-The goal is to design and implement the core domain entities with:
+- les entités métier principales (`User`, `Place`, `Review`, `Amenity`)
+- les règles de validation via setters `@property`
+- une couche service avec pattern **Facade**
+- une API REST en **Flask-RESTX** (avec Swagger)
+- un repository en mémoire (`InMemoryRepository`) pour le stockage temporaire
 
--   UUID-based identification
--   Timestamp management
--   Business rule validation using `@property` setters
--   Proper entity relationships
--   Clean serialization via `to_dict()` methods
+Cette version est orientée développement/tests: les données sont perdues au redémarrage.
 
-This layer is independent from the API (Presentation layer) and the
-Persistence layer.
+---
 
-------------------------------------------------------------------------
+## Stack technique
 
-## Project Structure
+- Python 3
+- Flask
+- Flask-RESTX
+- Tests: `unittest`
 
-    part2/
-    │
-    ├── app/
-    │   ├── api/
-    │   │   └── v1/
-    │   │       ├── users.py
-    │   │       ├── places.py
-    │   │       ├── reviews.py
-    │   │       └── amenities.py
-    │   │
-    │   ├── models/
-    │   │   ├── base.py
-    │   │   ├── user.py
-    │   │   ├── place.py
-    │   │   ├── review.py
-    │   │   └── amenity.py
-    │   │
-    │   ├── persistence/
-    │   │   └── repository.py
-    │   │
-    │   └── services/
-    │       └── facade.py
-    │
-    ├── test/
-    │   ├── test_user
-    │   ├── test_place
-    │   └── test_amenity
-    │
-    ├── config.py
-    ├── run.py
-    └── requirements.txt
+---
 
-------------------------------------------------------------------------
+## Structure du projet
 
-## BaseModel
-
-All entities inherit from `BaseModel`, which provides:
-
--   `id` (UUID stored as string)
--   `created_at`
--   `updated_at`
--   `save()` → updates `updated_at`
--   `update(data)` → updates attributes dynamically (triggers property
-    setters)
-
-### Why UUID?
-
--   Guarantees global uniqueness
--   Prevents predictable sequential IDs
--   Supports scalability and distributed systems
-
-------------------------------------------------------------------------
-
-## Attribute Validation Strategy
-
-All validation logic is implemented inside the **Business Logic layer**
-using `@property` setters.
-
-This ensures:
-
--   Validation at object creation
--   Validation during attribute updates
--   Data integrity independent from the API layer
-
-### Enforced Rules
-
-**User** - `first_name`, `last_name` → required, max 50 characters -
-`email` → required, basic format validation - `is_admin` → must be
-boolean
-
-**Place** - `title` → required, max 100 characters - `price` → must be
-positive - `latitude` → between -90 and 90 - `longitude` → between -180
-and 180 - `owner` → must reference a valid User-like object
-
-**Review** - `text` → required - `rating` → integer between 1 and 5 -
-Stores `place_id` and `user_id`
-
-**Amenity** - `name` → required, max 50 characters
-
-------------------------------------------------------------------------
-
-## Entity Relationships
-
-### User → Place (One-to-Many)
-
-A user can own multiple places.
-
-### Place → Review (One-to-Many)
-
-A place can have multiple reviews.
-
-### Place ↔ Amenity (Many-to-Many)
-
-A place can have multiple amenities.
-
-------------------------------------------------------------------------
-
-## Serialization Strategy
-
-Objects are converted using `to_dict()`.
-
-To keep responses API-ready:
-
--   Related objects are represented by their IDs
--   No nested object serialization
--   Ensures clean JSON output
-
-Example:
-
-``` python
-"reviews": [r.id for r in self.reviews]
-"amenities": [a.id for a in self.amenities]
-"owner": self.owner.id
+```text
+part2/
+├── app/
+│   ├── __init__.py
+│   ├── api/
+│   │   └── v1/
+│   │       ├── users.py
+│   │       ├── amenities.py
+│   │       ├── places.py
+│   │       └── reviews.py
+│   ├── models/
+│   │   ├── base.py
+│   │   ├── user.py
+│   │   ├── place.py
+│   │   ├── review.py
+│   │   └── amenity.py
+│   ├── persistence/
+│   │   └── repository.py
+│   └── services/
+│       └── facade.py
+├── test/
+│   ├── test_user.py
+│   ├── test_amenity.py
+│   ├── test_place.py
+│   └── test_review.py
+├── config.py
+├── run.py
+├── requirements.txt
+└── TEST_REPORT.md
 ```
 
-------------------------------------------------------------------------
+---
 
-## Testing
+## Modèle métier
 
-Independent test files validate:
+### `BaseModel`
 
--   Object creation
--   Default values
--   Validation rules
--   Relationship integrity
+Toutes les entités héritent de `BaseModel`:
 
-All tests pass successfully after implementing property-based
-validation.
+- `id` (UUID en string)
+- `created_at`
+- `updated_at`
+- `save()` met à jour `updated_at`
+- `update(data)` met à jour les attributs existants (et déclenche les validations)
 
-------------------------------------------------------------------------
+### Règles de validation
 
-## Outcome
+- **User**
+    - `first_name` et `last_name`: obligatoires, max 50 caractères
+    - `email`: obligatoire, format de base valide
+    - `is_admin`: booléen
+- **Place**
+    - `title`: obligatoire, max 100 caractères
+    - `description`: string (ou vide)
+    - `price`: nombre strictement positif
+    - `latitude`: entre -90 et 90
+    - `longitude`: entre -180 et 180
+    - `owner`: instance de `User`
+- **Review**
+    - `text`: obligatoire
+    - `rating`: entier entre 1 et 5
+    - `place`: instance de `Place`
+    - `user`: instance de `User`
+- **Amenity**
+    - `name`: obligatoire, max 50 caractères
 
-The Business Logic layer now provides:
+### Relations
 
--   Clean OOP architecture
--   Strong data validation
--   Proper relationship management
--   API-ready serialization
--   Compatibility with provided Facade and Repository layers
+- 1 `User` possède plusieurs `Place`
+- 1 `Place` possède plusieurs `Review`
+- 1 `Place` possède plusieurs `Amenity`
 
-The project is now ready for API integration and persistence handling in
-the next stages.
+Les méthodes `to_dict()` sérialisent les objets avec des IDs (pas de nested objects complexes).
 
-------------------------------------------------------------------------
+---
 
-## Authors
+## API REST
 
-Lorenzo Anselme\
-Lucas Mettetal
+L'application expose Swagger à l'URL:
+
+- `http://127.0.0.1:5000/api/v1/`
+
+Namespaces disponibles:
+
+- `/api/v1/users/`
+- `/api/v1/amenities/`
+- `/api/v1/places/`
+- `/api/v1/reviews/`
+
+### Endpoints principaux
+
+- **Users**
+    - `POST /api/v1/users/`
+    - `GET /api/v1/users/`
+    - `GET /api/v1/users/<user_id>`
+    - `PUT /api/v1/users/<user_id>`
+- **Amenities**
+    - `POST /api/v1/amenities/`
+    - `GET /api/v1/amenities/`
+    - `GET /api/v1/amenities/<amenity_id>`
+    - `PUT /api/v1/amenities/<amenity_id>`
+- **Places**
+    - `POST /api/v1/places/`
+    - `GET /api/v1/places/`
+    - `GET /api/v1/places/<place_id>`
+    - `PUT /api/v1/places/<place_id>`
+- **Reviews**
+    - `POST /api/v1/reviews/`
+    - `GET /api/v1/reviews/`
+    - `GET /api/v1/reviews/<review_id>`
+    - `PUT /api/v1/reviews/<review_id>`
+    - `DELETE /api/v1/reviews/<review_id>`
+
+---
+
+## Installation et exécution
+
+Depuis `part2/`:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python3 run.py
+```
+
+Puis ouvrir Swagger:
+
+- `http://127.0.0.1:5000/api/v1/`
+
+---
+
+## Tests
+
+Depuis `part2/`:
+
+```bash
+python3 -m unittest discover -s test -p "test_*.py" -v
+```
+
+Le détail des tests manuels/API est dans `TEST_REPORT.md`.
+
+---
+
+## Limites actuelles
+
+- Persistance en mémoire uniquement (pas de base de données)
+- Pas d'authentification/autorisation dans cette étape
+- API centrée sur les opérations CRUD demandées pour la partie 2
+
+---
+
+## Auteurs
+
+- Lorenzo Anselme
+- Lucas Mettetal
 
 Holberton School
