@@ -1,45 +1,44 @@
-Python cache
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*$py.class
 
-.pyc
+# Virtual environments
+venv/
+.env/
+.venv/
 
-pycache/ .py[cod] $py.class
-
-Virtual environments
-
-venv/ .env/ .venv/
-
-VS Code
-
+# VS Code
 .vscode/
 
-PyCharm
-
+# PyCharm
 .idea/
 
-MacOS
-
+# MacOS
 .DS_Store
 
-Logs
-
+# Logs
 *.log
 
-Environment variables
+# Environment variables
+.env.local
+.env.*
 
-.env.local .env.*
+# Coverage / Testing
+htmlcov/
+.coverage
+.pytest_cache/
 
-Coverage / Testing
-
-htmlcov/ .coverage .pytest_cache/
-
-Mypy
-
+# Mypy
 .mypy_cache/
 
-Build files
+# Build files
+build/
+dist/
+*.egg-info/
 
-build/ dist/ *.egg-info/
-
-Temporary files
-
-.swp .swo
+# Temporary files
+*.swp
+*.swo
