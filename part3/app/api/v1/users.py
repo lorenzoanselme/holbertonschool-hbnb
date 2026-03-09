@@ -15,6 +15,9 @@ user_model = api.model('User', {
     ),
     'email': fields.String(
         required=True, description='Email of the user'
+    ),
+    'password': fields.String(
+        required=True, description='Password of the user'
     )
 })
 
@@ -61,6 +64,9 @@ class UsersItem(Resource):
 
     def put(self, user_id):
         data = request.get_json(force=True) or {}
+
+        if 'password' in data:
+            return {"error": "Password cannot be updated here"}, 400
 
         try:
             user = facade.update_user(user_id, data)
