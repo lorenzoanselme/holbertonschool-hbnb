@@ -1,5 +1,6 @@
 from flask import request
 from flask_restx import Namespace, Resource, fields
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services import facade
 
 api = Namespace('users', description='User operations')
@@ -17,7 +18,6 @@ class UserList(Resource):
     @api.expect(user_model, validate=True)
     @api.response(201, 'User successfully created')
     @api.response(400, 'Email already registered')
-    @api.response(400, 'Invalid input data')
     def post(self):
         """Register a new user"""
         user_data = api.payload
@@ -51,16 +51,18 @@ class UsersItem(Resource):
             return {"error": "User not found"}, 404
         return user.to_dict(), 200
 
+    @jwt_required()
     def put(self, user_id):
+        """Modify user information"""
+        current_user = get_jwt_identity()
+
+        if current_user != user_id:
+            return {'error': 'Unauthorized action'}, 403
+
         data = request.get_json(force=True) or {}
 
-        # Si le mot de passe est modifié, on le hash
-        if 'password' in data:
-            user = facade.get_user(user_id)
-            if not user:
-                return {"error": "User not found"}, 404
-            user.hash_password(data['password'])
-            del data['password']
+        if 'email' in data or 'password' in data:
+            return {'error': 'You cannot modify email or password'}, 400
 
         try:
             user = facade.update_user(user_id, data)

@@ -1,53 +1,40 @@
 from flask import request
 from flask_restx import Namespace, Resource, fields
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services import facade
 
 api = Namespace('places', description='Place operations')
 
-# Create model (required fields)
 place_model = api.model('Place', {
     'title': fields.String(required=True, description='Title of the place'),
     'description': fields.String(description='Description of the place'),
     'price': fields.Float(required=True, description='Price per night'),
-    'latitude': fields.Float(
-        required=True,
-        description='Latitude of the place'
-    ),
-    'longitude': fields.Float(
-        required=True,
-        description='Longitude of the place'
-    ),
-    'owner_id': fields.String(required=True, description='ID of the owner'),
-    'amenities': fields.List(
-        fields.String,
-        required=True,
-        description="List of amenities IDs"
-    )
+    'latitude': fields.Float(required=True, description='Latitude of the place'),
+    'longitude': fields.Float(required=True, description='Longitude of the place'),
+    'amenities': fields.List(fields.String, required=True, description="List of amenities IDs")
 })
 
-# Update model (ALL optional -> allows partial updates)
 place_update_model = api.model('PlaceUpdate', {
     'title': fields.String(description='Title of the place'),
     'description': fields.String(description='Description of the place'),
     'price': fields.Float(description='Price per night'),
     'latitude': fields.Float(description='Latitude of the place'),
     'longitude': fields.Float(description='Longitude of the place'),
-    'owner_id': fields.String(description='ID of the owner'),
-    'amenities': fields.List(
-        fields.String,
-        description="List of amenities IDs"
-    )
+    'amenities': fields.List(fields.String, description="List of amenities IDs")
 })
 
 
 @api.route('/')
 class PlaceList(Resource):
+    @jwt_required()
     @api.expect(place_model, validate=True)
     @api.response(201, 'Place successfully created')
     @api.response(400, 'Invalid input data')
     def post(self):
-        """Register a new place"""
+        """Create a new place"""
+        current_user = get_jwt_identity()
         place_data = api.payload
+        place_data['owner_id'] = current_user
         try:
             place = facade.create_place(place_data)
             return place.to_dict(), 201
@@ -72,19 +59,24 @@ class PlaceResource(Resource):
             return {'error': 'Place not found'}, 404
         return place.to_dict(), 200
 
+    @jwt_required()
     @api.expect(place_update_model, validate=True)
     @api.response(200, 'Place updated successfully')
+    @api.response(403, 'Unauthorized action')
     @api.response(404, 'Place not found')
-    @api.response(400, 'Invalid input data')
     def put(self, place_id):
         """Update a place's information"""
+        current_user = get_jwt_identity()
+        place = facade.get_place(place_id)
+        if not place:
+            return {'error': 'Place not found'}, 404
+        if place.owner_id != current_user:
+            return {'error': 'Unauthorized action'}, 403
+
         data = request.get_json(force=True) or {}
         try:
             updated = facade.update_place(place_id, data)
         except ValueError as e:
             return {'error': str(e)}, 400
-
-        if not updated:
-            return {'error': 'Place not found'}, 404
 
         return updated.to_dict(), 200
