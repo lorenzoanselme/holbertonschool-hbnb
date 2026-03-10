@@ -1,14 +1,23 @@
 from flask import request
 from flask_restx import Namespace, Resource, fields
 from app.services import facade
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 api = Namespace('places', description='Place operations')
 
 # Create model (required fields)
 place_model = api.model('Place', {
-    'title': fields.String(required=True, description='Title of the place'),
-    'description': fields.String(description='Description of the place'),
-    'price': fields.Float(required=True, description='Price per night'),
+    'title': fields.String(
+        required=True,
+        description='Title of the place'
+    ),
+    'description': fields.String(
+        description='Description of the place'
+    ),
+    'price': fields.Float(
+        required=True,
+        description='Price per night'
+    ),
     'latitude': fields.Float(
         required=True,
         description='Latitude of the place'
@@ -17,10 +26,8 @@ place_model = api.model('Place', {
         required=True,
         description='Longitude of the place'
     ),
-    'owner_id': fields.String(required=True, description='ID of the owner'),
     'amenities': fields.List(
         fields.String,
-        required=True,
         description="List of amenities IDs"
     )
 })
@@ -42,49 +49,56 @@ place_update_model = api.model('PlaceUpdate', {
 
 @api.route('/')
 class PlaceList(Resource):
-    @api.expect(place_model, validate=True)
-    @api.response(201, 'Place successfully created')
-    @api.response(400, 'Invalid input data')
-    def post(self):
-        """Register a new place"""
-        place_data = api.payload
-        try:
-            place = facade.create_place(place_data)
-            return place.to_dict(), 201
-        except ValueError as e:
-            return {'error': str(e)}, 400
-
-    @api.response(200, 'List of places retrieved successfully')
     def get(self):
-        """Retrieve a list of all places"""
         places = facade.get_all_places()
-        return [p.to_dict() for p in places], 200
+        return [place.to_dict() for place in places], 200
+
+    @jwt_required()
+    def post(self):
+        place_data = api.payload
+        current_user = get_jwt_identity()
+
+        place_data["owner_id"] = current_user
+
+        try:
+            new_place = facade.create_place(place_data)
+        except ValueError as e:
+            return {"error": str(e)}, 400
+
+        return new_place.to_dict(), 201
 
 
 @api.route('/<string:place_id>')
-class PlaceResource(Resource):
-    @api.response(200, 'Place details retrieved successfully')
-    @api.response(404, 'Place not found')
+class PlaceItem(Resource):
     def get(self, place_id):
-        """Get place details by ID"""
         place = facade.get_place(place_id)
         if not place:
-            return {'error': 'Place not found'}, 404
+            return {"error": "Place not found"}, 404
         return place.to_dict(), 200
 
-    @api.expect(place_update_model, validate=True)
-    @api.response(200, 'Place updated successfully')
-    @api.response(404, 'Place not found')
-    @api.response(400, 'Invalid input data')
+    @jwt_required()
     def put(self, place_id):
-        """Update a place's information"""
+        current_user = get_jwt_identity()
+        place = facade.get_place(place_id)
+
+        if not place:
+            return {"error": "Place not found"}, 404
+
+        owner_id = (place.owner.id if hasattr(place.owner, "id")
+                    else place.owner)
+        if owner_id != current_user:
+            return {"error": "Unauthorized action"}, 403
+
         data = request.get_json(force=True) or {}
+        data.pop("owner", None)
+        data.pop("owner_id", None)
+
         try:
-            updated = facade.update_place(place_id, data)
+            updated_place = facade.update_place(place_id, data)
         except ValueError as e:
-            return {'error': str(e)}, 400
+            return {"error": str(e)}, 400
 
-        if not updated:
-            return {'error': 'Place not found'}, 404
+        if not updated_place:
+            return {"error": "Place not found"}, 404
 
-        return updated.to_dict(), 200
+        return updated_place.to_dict(), 200
