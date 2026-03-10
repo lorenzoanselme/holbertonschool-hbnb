@@ -1,25 +1,19 @@
-# app/api/v1/users.py
 from flask import request
 from flask_restx import Namespace, Resource, fields
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.services import facade
-from flask_jwt_extended import jwt_required, get_jwt_identity
 
 api = Namespace('users', description='User operations')
 
-# Define the user model for input validation and documentation
 user_model = api.model('User', {
     'first_name': fields.String(
-        required=True, description='First name of the user'
-    ),
+        required=True, description='First name of the user'),
     'last_name': fields.String(
-        required=True, description='Last name of the user'
-    ),
+        required=True, description='Last name of the user'),
     'email': fields.String(
-        required=True, description='Email of the user'
-    ),
+        required=True, description='Email of the user'),
     'password': fields.String(
-        required=True, description='Password of the user'
-    )
+        required=True, description='Password of the user')
 })
 
 
@@ -29,11 +23,15 @@ class UserList(Resource):
     @api.response(201, 'User successfully created')
     @api.response(400, 'Email already registered')
     @api.response(400, 'Invalid input data')
+    @jwt_required()
     def post(self):
-        """Register a new user"""
+        """Create a new user (admin only)"""
+        claims = get_jwt()
+        if not claims.get("is_admin", False):
+            return {"error": "Admin privileges required"}, 403
+
         user_data = api.payload
 
-        # Simulate email uniqueness check
         existing_user = facade.get_user_by_email(user_data['email'])
         if existing_user:
             return {'error': 'Email already registered'}, 400
@@ -55,7 +53,7 @@ class UserList(Resource):
         return [u.to_dict() for u in users], 200
 
 
-@api.route("/<string:user_id>")
+@api.route('/<string:user_id>')
 class UsersItem(Resource):
     def get(self, user_id):
         user = facade.get_user(user_id)
@@ -66,14 +64,21 @@ class UsersItem(Resource):
     @jwt_required()
     def put(self, user_id):
         current_user = get_jwt_identity()
-
-        if current_user != user_id:
-            return {"error": "Unauthorized action"}, 403
+        claims = get_jwt()
+        is_admin = claims.get("is_admin", False)
 
         data = request.get_json(force=True) or {}
 
-        if "email" in data or "password" in data:
+        if not is_admin and current_user != user_id:
+            return {"error": "Unauthorized action"}, 403
+
+        if not is_admin and ("email" in data or "password" in data):
             return {"error": "You cannot modify email or password."}, 400
+
+        if "email" in data:
+            existing_user = facade.get_user_by_email(data["email"])
+            if existing_user and existing_user.id != user_id:
+                return {"error": "Email already in use"}, 400
 
         try:
             user = facade.update_user(user_id, data)

@@ -1,6 +1,7 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request
 from app.services import facade
+from flask_jwt_extended import jwt_required, get_jwt
 
 api = Namespace('amenities', description='Amenity operations')
 
@@ -15,17 +16,21 @@ class AmenityList(Resource):
     @api.expect(amenity_model, validate=True)
     @api.response(201, 'Amenity successfully created')
     @api.response(400, 'Invalid input data')
+    @jwt_required()
     def post(self):
-        """Register a new amenity"""
-        # Placeholder for the logic to register a new amenity
-        data = request.get_json(force=True) or {}
+        claims = get_jwt()
+
+        if not claims.get("is_admin", False):
+            return {"error": "Admin privileges required"}, 403
+
+        amenity_data = api.payload
 
         try:
-            amenity = facade.create_amenity(data)
+            new_amenity = facade.create_amenity(amenity_data)
         except ValueError as e:
             return {"error": str(e)}, 400
 
-        return amenity.to_dict(), 201
+        return new_amenity.to_dict(), 201
 
     @api.response(200, 'List of amenities retrieved successfully')
     def get(self):
@@ -51,9 +56,13 @@ class AmenityResource(Resource):
     @api.response(200, 'Amenity updated successfully')
     @api.response(404, 'Amenity not found')
     @api.response(400, 'Invalid input data')
+    @jwt_required()
     def put(self, amenity_id):
-        """Update an amenity's information"""
-        # Placeholder for the logic to update an amenity by ID
+        claims = get_jwt()
+
+        if not claims.get("is_admin", False):
+            return {"error": "Admin privileges required"}, 403
+
         data = request.get_json(force=True) or {}
 
         try:
