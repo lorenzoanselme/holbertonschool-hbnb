@@ -3,12 +3,12 @@ from app.models.amenity import Amenity
 from app.models.user import User
 from app.models.place import Place
 from app.models.review import Review
-from app.persistence.repository import SQLAlchemyRepository
+from app.services.repositories.user_repository import UserRepository
 
 
 class HBnBFacade:
     def __init__(self):
-        self.user_repo = SQLAlchemyRepository(User)
+        self.user_repo = UserRepository()
         self.place_repo = InMemoryRepository()
         self.review_repo = InMemoryRepository()
         self.amenity_repo = InMemoryRepository()
@@ -23,7 +23,7 @@ class HBnBFacade:
         return self.user_repo.get(user_id)
 
     def get_user_by_email(self, email):
-        return self.user_repo.get_by_attribute("email", email)
+        return self.user_repo.get_user_by_email(email)
 
     def get_all_users(self):
         return self.user_repo.get_all()
@@ -33,7 +33,14 @@ class HBnBFacade:
         if not user:
             return None
 
-        self.user_repo.update(user_id, user_data)
+        if "password" in user_data:
+            user.hash_password(user_data["password"])
+            user_data = {k: v for k, v in user_data.items() if k != "password"}
+
+        for key, value in user_data.items():
+            setattr(user, key, value)
+
+        self.user_repo.add(user)
         return user
 
     # Amenities
