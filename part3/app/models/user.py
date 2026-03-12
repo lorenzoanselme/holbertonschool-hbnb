@@ -11,6 +11,8 @@ class User(BaseModel):
     password = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
 
+    places = db.relationship("Place", backref="owner", lazy=True)
+
     def __init__(self, first_name, last_name, email, password, is_admin=False):
         self.first_name = first_name.strip()
         self.last_name = last_name.strip()

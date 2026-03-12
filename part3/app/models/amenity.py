@@ -1,30 +1,18 @@
-from .base import BaseModel
+from app.extensions import db
+from app.models.base import BaseModel
 
 
 class Amenity(BaseModel):
-    def __init__(self, name):
-        super().__init__()
-        self.name = name
+    __tablename__ = "amenity"
 
-    @property
-    def name(self):
-        return self._name
+    name = db.Column(db.String(50), nullable=False)
 
-    @name.setter
-    def name(self, value):
-        if not value:
-            raise ValueError("name is required")
-        if not isinstance(value, str):
-            raise ValueError("name must be string")
-        v = value.strip()
-        if len(v) > 50:
-            raise ValueError("name must be at most 50 characters")
-        self._name = v
+    def __init__(self, name, **kwargs):
+        self.name = name.strip()
 
     def to_dict(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-        }
+        amenity_dict = super().to_dict()
+        amenity_dict.update({
+            "name": self.name
+        })
+        return amenity_dict

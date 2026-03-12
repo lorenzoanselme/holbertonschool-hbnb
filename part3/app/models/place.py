@@ -1,111 +1,83 @@
-from .base import BaseModel
-from .user import User
+from app.extensions import db
+from app.models.base import BaseModel
+from typing import cast, Any
+
+place_amenity = db.Table(
+    "place_amenity",
+    db.Column("place_id", db.String(36), db.ForeignKey("place.id"), primary_key=True),
+    db.Column("amenity_id", db.String(36), db.ForeignKey("amenity.id"), primary_key=True),
+)
 
 
 class Place(BaseModel):
-    def __init__(self, title, description, price, latitude, longitude, owner):
-        super().__init__()
-        self.title = title
-        self.description = description
-        self.price = price
-        self.latitude = latitude
-        self.longitude = longitude
-        self.owner = owner
-        self.reviews = []
-        self.amenities = []
+    __tablename__ = "place"
 
-    @property
-    def title(self):
-        return self._title
+    title = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    price = db.Column(db.Float, nullable=False)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
 
-    @title.setter
-    def title(self, value):
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError("title is required")
-        v = value.strip()
-        if len(v) > 100:
-            raise ValueError("title must be at most 100 characters")
-        self._title = v
+    owner_id = db.Column(
+        db.String(36),
+        db.ForeignKey("users.id"),
+        nullable=False
+    )
 
-    @property
-    def description(self):
-        return self._description
+    amenities = db.relationship(
+        "Amenity",
+        secondary=place_amenity,
+        backref="places",
+        lazy=True
+    )
 
-    @description.setter
-    def description(self, value):
-        if value is None:
-            self._description = ""
-            return
-        if not isinstance(value, str):
-            raise ValueError("description must be a string")
-        self._description = value
+    def __init__(
+        self,
+        title,
+        description,
+        price,
+        latitude,
+        longitude,
+        owner,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.title = title.strip()
+        self.description = description if description is not None else ""
+        self.price = float(price)
+        self.latitude = float(latitude)
+        self.longitude = float(longitude)
 
-    @property
-    def price(self):
-        return self._price
-
-    @price.setter
-    def price(self, value):
-        if not isinstance(value, (int, float)):
-            raise ValueError("price must be a number")
-        v = float(value)
-        if v <= 0:
-            raise ValueError("price must be a positive value")
-        self._price = v
-
-    @property
-    def latitude(self):
-        return self._latitude
-
-    @latitude.setter
-    def latitude(self, value):
-        if not isinstance(value, (int, float)):
-            raise ValueError("latitude must be a number")
-        v = float(value)
-        if v < -90.0 or v > 90.0:
-            raise ValueError("latitude must be between -90.0 and 90.0")
-        self._latitude = v
-
-    @property
-    def longitude(self):
-        return self._longitude
-
-    @longitude.setter
-    def longitude(self, value):
-        if not isinstance(value, (int, float)):
-            raise ValueError("longitude must be a number")
-        v = float(value)
-        if v < -180.0 or v > 180.0:
-            raise ValueError("longitude must be between -180.0 and 180.0")
-        self._longitude = v
-
-    @property
-    def owner(self):
-        return self._owner
-
-    @owner.setter
-    def owner(self, value):
-        if not isinstance(value, User):
-            raise ValueError("owner must be an User instance")
-        self._owner = value
+        if hasattr(owner, "id"):
+            self.owner = owner
+            self.owner_id = owner.id
+        else:
+            self.owner_id = owner
 
     def add_review(self, review):
+        if not hasattr(self, "reviews") or self.reviews is None:
+            self.reviews = []
         self.reviews.append(review)
 
     def add_amenity(self, amenity):
+        if not hasattr(self, "amenities") or self.amenities is None:
+            self.amenities = []
         self.amenities.append(amenity)
 
     def to_dict(self):
-        return {
-            "id": self.id,
+        place_dict = super().to_dict()
+
+        reviews = cast(list[Any], self.reviews or [])
+        amenities = cast(list[Any], self.amenities or [])
+
+        place_dict.update({
             "title": self.title,
             "description": self.description,
             "price": self.price,
             "latitude": self.latitude,
             "longitude": self.longitude,
-            "owner": self.owner.id,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "reviews": [r.id for r in self.reviews],
-            "amenities": [a.id for a in self.amenities],
-        }
+            "owner": self.owner_id,
+            "reviews": [r.id for r in reviews],
+            "amenities": [a.id for a in amenities],
+        })
+        return place_dict

@@ -1,67 +1,45 @@
-from .base import BaseModel
-from .place import Place
-from .user import User
+from app.extensions import db
+from app.models.base import BaseModel
 
 
 class Review(BaseModel):
-    def __init__(self, text, rating, place, user):
-        super().__init__()
-        self.text = text
-        self.rating = rating
-        self.place = place
-        self.user = user
+    __tablename__ = "review"
 
-    @property
-    def text(self):
-        return self._text
+    text = db.Column(db.String(255), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)
 
-    @text.setter
-    def text(self, value):
-        if not value:
-            raise ValueError("text is required")
-        if not isinstance(value, str):
-            raise ValueError("text must be a string")
-        self._text = value.strip()
+    place_id = db.Column(
+        db.String(36), db.ForeignKey("place.id"), nullable=False
+    )
+    user_id = db.Column(
+        db.String(36), db.ForeignKey("users.id"), nullable=False
+    )
 
-    @property
-    def rating(self):
-        return self._rating
+    place = db.relationship("Place", backref="reviews")
+    user = db.relationship("User", backref="reviews")
 
-    @rating.setter
-    def rating(self, value):
-        if not isinstance(value, int):
-            raise ValueError("rating must be an integer")
-        if value < 1 or value > 5:
-            raise ValueError("rating must be between 1 and 5")
-        self._rating = value
+    def __init__(self, text, rating, place, user, **kwargs):
+        self.text = text.strip()
+        self.rating = int(rating)
 
-    @property
-    def place(self):
-        return self._place
+        if hasattr(place, "id"):
+            self.place = place
+            self.place_id = place.id
+        else:
+            self.place_id = place
 
-    @place.setter
-    def place(self, value):
-        if not isinstance(value, Place):
-            raise ValueError("Place must be a Place instance")
-        self._place = value
-
-    @property
-    def user(self):
-        return self._user
-
-    @user.setter
-    def user(self, value):
-        if not isinstance(value, User):
-            raise ValueError("user must be a User instance")
-        self._user = value
+        if hasattr(user, "id"):
+            self.user = user
+            self.user_id = user.id
+        else:
+            self.user_id = user
 
     def to_dict(self):
-        return {
-            "id": self.id,
+        review_dict = super().to_dict()
+        review_dict.update({
             "text": self.text,
             "rating": self.rating,
-            "place": self.place.id,
-            "user": self.user.id,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-        }
+            "place": self.place_id,
+            "user": self.user_id
+        })
+        return review_dict
