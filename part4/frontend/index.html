@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Places — HBnB</title>
+        <link rel="icon" type="image/png" href="assets/logo.png" />
+        <link rel="stylesheet" href="css/styles.css" />
+        <script>
+            if (localStorage.getItem("hbnb-theme") === "dark")
+                document.documentElement.dataset.theme = "dark";
+        </script>
+    </head>
+    <body>
+        <div class="page-wrapper">
+            <header>
+                <nav class="navbar">
+                    <a href="index.html" class="navbar-brand">
+                        <img src="assets/logo.png" alt="HBnB" class="logo" />
+                    </a>
+                    <div class="navbar-top-actions">
+                        <button
+                            type="button"
+                            class="theme-toggle"
+                            aria-label="Toggle theme"
+                        >
+                            🌙
+                        </button>
+                        <button
+                            type="button"
+                            class="nav-menu-toggle"
+                            aria-label="Open navigation menu"
+                            aria-expanded="false"
+                        >
+                            <span class="nav-menu-toggle-bar"></span>
+                            <span class="nav-menu-toggle-bar"></span>
+                            <span class="nav-menu-toggle-bar"></span>
+                        </button>
+                    </div>
+                    <div class="navbar-actions">
+                        <a
+                            href="profile.html?action=new-place"
+                            id="nav-add-place"
+                            class="login-button"
+                            style="display: none"
+                            >+ Add Place</a
+                        >
+                        <a
+                            href="profile.html"
+                            id="nav-profile"
+                            class="login-button"
+                            style="display: none"
+                            >My Profile</a
+                        >
+                        <a
+                            href="login.html"
+                            id="login-link"
+                            class="login-button"
+                            style="display: none"
+                            >Login</a
+                        >
+                        <button
+                            type="button"
+                            id="nav-logout"
+                            class="login-button"
+                            style="display: none"
+                        >
+                            Sign Out
+                        </button>
+                    </div>
+                </nav>
+            </header>
+
+            <main>
+                <div class="page-header">
+                    <h1>Available Places</h1>
+                    <p>Browse and book unique stays around the world.</p>
+                </div>
+
+                <div class="filter-bar">
+                    <label for="price-filter">Max price per night</label>
+                    <select id="price-filter">
+                        <option value="all">All</option>
+                        <option value="50">$50</option>
+                        <option value="150">$150</option>
+                        <option value="300">$300</option>
+                    </select>
+                </div>
+
+                <div id="places-list">
+                    <div class="spinner-wrapper">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </main>
+
+            <footer>
+                <p>&copy; 2026 HBnB Evolution. All rights reserved.</p>
+            </footer>
+        </div>
+
+        <script type="module">
+            import { initTheme } from "./js/theme.js";
+            initTheme();
+        </script>
+        <script type="module" src="js/places.js"></script>
+    </body>
+</html>

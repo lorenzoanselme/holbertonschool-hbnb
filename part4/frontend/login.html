@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Sign In — HBnB</title>
+        <link rel="icon" type="image/png" href="assets/logo.png" />
+        <link rel="stylesheet" href="css/styles.css" />
+        <script>
+            if (localStorage.getItem("hbnb-theme") === "dark")
+                document.documentElement.dataset.theme = "dark";
+        </script>
+    </head>
+    <body>
+        <div class="page-wrapper">
+            <header>
+                <nav class="navbar">
+                    <a href="index.html" class="navbar-brand">
+                        <img src="assets/logo.png" alt="HBnB" class="logo" />
+                    </a>
+                    <div class="navbar-top-actions">
+                        <button
+                            type="button"
+                            class="theme-toggle"
+                            aria-label="Toggle theme"
+                        >
+                            🌙
+                        </button>
+                        <button
+                            type="button"
+                            class="nav-menu-toggle"
+                            aria-label="Open navigation menu"
+                            aria-expanded="false"
+                        >
+                            <span class="nav-menu-toggle-bar"></span>
+                            <span class="nav-menu-toggle-bar"></span>
+                            <span class="nav-menu-toggle-bar"></span>
+                        </button>
+                    </div>
+                    <div class="navbar-actions">
+                        <a href="register.html" class="login-button">Sign up</a>
+                    </div>
+                </nav>
+            </header>
+
+            <main class="main-centered">
+                <div class="glass login-card">
+                    <div class="login-logo">
+                        <p>Find your perfect stay</p>
+                    </div>
+
+                    <h1 class="login-title">Sign in to continue</h1>
+
+                    <div
+                        id="login-alert"
+                        class="alert alert-error"
+                        role="alert"
+                    ></div>
+
+                    <form id="login-form" novalidate>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                placeholder="you@example.com"
+                                autocomplete="email"
+                                required
+                            />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                placeholder="••••••••"
+                                autocomplete="current-password"
+                                required
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            id="login-btn"
+                            class="btn btn-primary btn-lg btn-block"
+                            style="margin-top: 8px"
+                        >
+                            <span id="btn-text">Sign In</span>
+                            <span
+                                id="btn-spinner"
+                                class="spinner"
+                                style="
+                                    display: none;
+                                    width: 18px;
+                                    height: 18px;
+                                    border-width: 2px;
+                                "
+                                aria-hidden="true"
+                            ></span>
+                        </button>
+                    </form>
+
+                    <p
+                        style="
+                            text-align: center;
+                            margin-top: 24px;
+                            font-size: 0.875rem;
+                            color: var(--text-secondary);
+                        "
+                    >
+                        No account yet?
+                        <a
+                            href="register.html"
+                            class="login-button"
+                            style="padding: 4px 10px; margin-left: 4px"
+                            >Sign up</a
+                        >
+                    </p>
+                </div>
+            </main>
+
+            <footer>
+                <p>&copy; 2026 HBnB Evolution. All rights reserved.</p>
+            </footer>
+        </div>
+
+        <script type="module">
+            import { initTheme } from "./js/theme.js";
+            import { initLoginPage } from "./js/auth.js";
+            initTheme();
+            initLoginPage();
+        </script>
+    </body>
+</html>

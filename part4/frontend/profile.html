@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Profile — HBnB</title>
+        <link rel="icon" type="image/png" href="assets/logo.png" />
+        <link rel="stylesheet" href="css/styles.css" />
+        <script>
+            if (localStorage.getItem("hbnb-theme") === "dark")
+                document.documentElement.dataset.theme = "dark";
+        </script>
+    </head>
+    <body>
+        <div class="page-wrapper">
+            <header>
+                <nav class="navbar">
+                    <a href="index.html" class="navbar-brand">
+                        <img src="assets/logo.png" alt="HBnB" class="logo" />
+                    </a>
+                    <div class="navbar-top-actions">
+                        <button
+                            type="button"
+                            class="theme-toggle"
+                            aria-label="Toggle theme"
+                        >
+                            🌙
+                        </button>
+                        <button
+                            type="button"
+                            class="nav-menu-toggle"
+                            aria-label="Open navigation menu"
+                            aria-expanded="false"
+                        >
+                            <span class="nav-menu-toggle-bar"></span>
+                            <span class="nav-menu-toggle-bar"></span>
+                            <span class="nav-menu-toggle-bar"></span>
+                        </button>
+                    </div>
+                    <div class="navbar-actions">
+                        <a
+                            href="profile.html?action=new-place"
+                            id="nav-add-place"
+                            class="login-button"
+                            style="display: none"
+                            >+ Add Place</a
+                        >
+                        <a
+                            href="profile.html"
+                            id="nav-profile"
+                            class="login-button"
+                            style="display: none"
+                            >My Profile</a
+                        >
+                        <a
+                            href="login.html"
+                            id="login-link"
+                            class="login-button"
+                            style="display: none"
+                            >Login</a
+                        >
+                        <button
+                            type="button"
+                            id="nav-logout"
+                            class="login-button"
+                            style="display: none"
+                        >
+                            Sign Out
+                        </button>
+                    </div>
+                </nav>
+            </header>
+
+            <main>
+                <section class="profile-layout">
+                    <div class="detail-card profile-hero fade-in">
+                        <div class="profile-hero-main">
+                            <div
+                                id="profile-avatar"
+                                class="profile-avatar"
+                                aria-hidden="true"
+                            >
+                                ?
+                            </div>
+                            <input
+                                type="file"
+                                id="profile-photo-input"
+                                accept="image/*"
+                                hidden
+                            />
+                            <div class="profile-hero-copy">
+                                <p class="section-title profile-title-kicker">
+                                    Host Profile
+                                </p>
+                                <h1
+                                    id="profile-display-name"
+                                    class="detail-title profile-display-name"
+                                >
+                                    Loading…
+                                </h1>
+                                <p id="profile-public-bio" class="profile-bio">
+                                    Loading profile…
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="profile-form-card" class="detail-card fade-in">
+                        <div class="profile-section-header">
+                            <div>
+                                <p class="section-title profile-title-kicker">
+                                    Edit Profile
+                                </p>
+                                <h2 class="profile-section-title">
+                                    Manage your public profile
+                                </h2>
+                            </div>
+                        </div>
+
+                        <div
+                            id="profile-alert"
+                            class="alert"
+                            role="alert"
+                        ></div>
+
+                        <form id="profile-form" class="form" novalidate>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="first_name">First Name</label>
+                                    <input
+                                        type="text"
+                                        id="first_name"
+                                        name="first_name"
+                                        required
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label for="last_name">Last Name</label>
+                                    <input
+                                        type="text"
+                                        id="last_name"
+                                        name="last_name"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="email">Email</label>
+                                <input
+                                    type="email"
+                                    id="email"
+                                    name="email"
+                                    disabled
+                                />
+                            </div>
+
+                            <input
+                                type="hidden"
+                                id="profile_picture_url"
+                                name="profile_picture_url"
+                            />
+                            <p class="profile-photo-hint">
+                                Click the photo to choose an image from your
+                                device.
+                            </p>
+
+                            <div class="form-group">
+                                <label for="bio">Profile Description</label>
+                                <textarea
+                                    id="bio"
+                                    name="bio"
+                                    rows="5"
+                                    placeholder="Tell guests who you are, what you host, and what they can expect."
+                                ></textarea>
+                            </div>
+
+                            <button
+                                type="submit"
+                                id="profile-btn"
+                                class="btn btn-primary btn-lg btn-block"
+                            >
+                                <span id="profile-btn-text">Save Profile</span>
+                                <span
+                                    id="profile-spinner"
+                                    class="spinner"
+                                    style="
+                                        display: none;
+                                        width: 18px;
+                                        height: 18px;
+                                        border-width: 2px;
+                                    "
+                                    aria-hidden="true"
+                                ></span>
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <section
+                    id="notifications-section"
+                    class="detail-card fade-in"
+                    style="display: none"
+                >
+                    <div class="profile-section-header">
+                        <div>
+                            <p class="section-title profile-title-kicker">
+                                Notifications
+                            </p>
+                            <h2 class="profile-section-title">
+                                Recent activity on your places
+                            </h2>
+                        </div>
+                    </div>
+
+                    <div id="notifications-list"></div>
+                </section>
+
+                <section
+                    id="my-reviews-section"
+                    class="detail-card fade-in"
+                    style="display: none"
+                >
+                    <div class="profile-section-header">
+                        <div>
+                            <p class="section-title profile-title-kicker">
+                                Reviews
+                            </p>
+                            <h2 class="profile-section-title">My reviews</h2>
+                        </div>
+                    </div>
+
+                    <div id="my-reviews-list"></div>
+                </section>
+
+                <section class="detail-card fade-in">
+                    <div class="profile-section-header">
+                        <div>
+                            <p class="section-title profile-title-kicker">
+                                Places
+                            </p>
+                            <h2
+                                id="places-section-title"
+                                class="profile-section-title"
+                            >
+                                Hosted places
+                            </h2>
+                        </div>
+                    </div>
+
+                    <div id="places-alert" class="alert" role="alert"></div>
+                    <div id="profile-places" class="places-list places-grid">
+                        <div class="spinner-wrapper">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <div id="place-modal" class="modal-overlay" hidden>
+                <div class="modal-card glass">
+                    <div class="profile-section-header profile-modal-header">
+                        <div>
+                            <p class="section-title profile-title-kicker">
+                                Place
+                            </p>
+                            <h2
+                                id="place-modal-title"
+                                class="profile-section-title"
+                            >
+                                Add a place
+                            </h2>
+                        </div>
+                        <button
+                            type="button"
+                            id="close-place-modal"
+                            class="login-button"
+                        >
+                            Close
+                        </button>
+                    </div>
+
+                    <div id="place-form-alert" class="alert" role="alert"></div>
+
+                    <form id="place-modal-form" class="form" novalidate>
+                        <div class="form-group">
+                            <label for="place_title">Title</label>
+                            <input type="text" id="place_title" required />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="place_description">Description</label>
+                            <textarea
+                                id="place_description"
+                                rows="4"
+                            ></textarea>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="place_price">Price</label>
+                                <input
+                                    type="number"
+                                    id="place_price"
+                                    min="0"
+                                    step="0.01"
+                                    required
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="place_latitude">Latitude</label>
+                                <input
+                                    type="number"
+                                    id="place_latitude"
+                                    step="any"
+                                    required
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="place_longitude">Longitude</label>
+                                <input
+                                    type="number"
+                                    id="place_longitude"
+                                    step="any"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Amenities</label>
+                            <div class="amenity-picker">
+                                <button
+                                    type="button"
+                                    id="amenities-toggle"
+                                    class="amenity-picker-toggle"
+                                    aria-expanded="false"
+                                >
+                                    <span id="amenities-toggle-label">
+                                        Choose amenities
+                                    </span>
+                                    <span class="amenity-picker-caret">
+                                        ▼
+                                    </span>
+                                </button>
+                                <p
+                                    id="amenities-selection-summary"
+                                    class="amenity-selection-summary"
+                                >
+                                    No amenities selected.
+                                </p>
+                                <div
+                                    id="modal-amenities-panel"
+                                    class="amenity-picker-panel"
+                                    hidden
+                                >
+                                    <div
+                                        id="modal-amenities-list"
+                                        class="amenities-checkboxes"
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            id="place-save-btn"
+                            class="btn btn-primary btn-lg btn-block"
+                        >
+                            <span id="place-save-btn-text">Save place</span>
+                            <span
+                                id="place-save-spinner"
+                                class="spinner"
+                                style="
+                                    display: none;
+                                    width: 18px;
+                                    height: 18px;
+                                    border-width: 2px;
+                                "
+                                aria-hidden="true"
+                            ></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <footer>
+                <p>&copy; 2026 HBnB Evolution. All rights reserved.</p>
+            </footer>
+        </div>
+
+        <script type="module">
+            import { initTheme } from "./js/theme.js";
+            initTheme();
+        </script>
+        <script type="module" src="js/profile.js"></script>
+    </body>
+</html>
