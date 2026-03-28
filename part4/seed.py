@@ -185,6 +185,10 @@ with app.app_context():
     user_map = {}
     for user_data in USERS:
         user = ensure_user(user_data)
+        if not user:
+            raise RuntimeError(
+                f"Unable to create or retrieve seeded user: {user_data['email']}"
+            )
         user_map[user.email] = user
         print(f"  User ready: {user.email}")
 
@@ -217,9 +221,17 @@ with app.app_context():
         if existing:
             facade.update_place(existing.id, payload)
             place = facade.get_place(existing.id)
+            if not place:
+                raise RuntimeError(
+                    f"Unable to retrieve seeded place after update: {place_data['title']}"
+                )
             print(f"  Updated place: {place.title}")
         else:
             place = facade.create_place(payload)
+            if not place:
+                raise RuntimeError(
+                    f"Unable to create seeded place: {place_data['title']}"
+                )
             print(f"  Created place: {place.title}")
 
         place_map[place.title] = place
