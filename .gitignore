@@ -23,6 +23,7 @@ venv/
 *.log
 
 # Environment variables
+.env
 .env.local
 .env.*
 
@@ -44,5 +45,8 @@ dist/
 *.swo
 
 # Project runtime data
+part3/instance/
 part4/instance/
 part4/frontend/assets/uploads/
+part4/deploy/certs/*
+!part4/deploy/certs/.gitkeep

@@ -1,39 +1,43 @@
 /**
  * auth.js — Authentication utilities
- * Handles token storage, login redirect, and logout.
+ * Handles session bootstrap, login redirect, and logout.
  */
 
-import { getCookie, setCookie, deleteCookie, apiLogin } from './api.js';
+import { apiGetCurrentUser, apiLogin, apiLogout } from "./api.js";
+
+const AUTH_STORAGE_KEY = "hbnb-current-user";
 
 // ──────────────────────────────────────────────────
 // Token helpers
 // ──────────────────────────────────────────────────
 
-export function getToken() {
-  return getCookie('token');
-}
-
-export function setToken(token) {
-  setCookie('token', token, 1); // 1 day
-}
-
-export function removeToken() {
-  deleteCookie('token');
-}
-
-export function isLoggedIn() {
-  return !!getToken();
-}
-
-export function getCurrentUserId() {
-  const token = getToken();
-  if (!token) return null;
+function readStoredUser() {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return payload.sub;
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
+}
+
+function storeUser(user) {
+  if (!user) {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+}
+
+export function getCurrentUser() {
+  return readStoredUser();
+}
+
+export function isLoggedIn() {
+  return !!readStoredUser();
+}
+
+export function getCurrentUserId() {
+  return readStoredUser()?.id || null;
 }
 
 // ──────────────────────────────────────────────────
@@ -42,7 +46,18 @@ export function getCurrentUserId() {
 
 export function requireAuth() {
   if (!isLoggedIn()) {
-    window.location.href = 'login.html';
+    apiGetCurrentUser()
+      .then((response) => {
+        if (response?.user) {
+          storeUser(response.user);
+          updateNavbar();
+          return;
+        }
+        window.location.href = "login.html";
+      })
+      .catch(() => {
+        window.location.href = "login.html";
+      });
   }
 }
 
@@ -52,8 +67,17 @@ export function requireAuth() {
 
 export function redirectIfLoggedIn() {
   if (isLoggedIn()) {
-    window.location.href = 'index.html';
+    window.location.href = "index.html";
+    return;
   }
+  apiGetCurrentUser()
+    .then((response) => {
+      if (response?.user) {
+        storeUser(response.user);
+        window.location.href = "index.html";
+      }
+    })
+    .catch(() => {});
 }
 
 // ──────────────────────────────────────────────────
@@ -61,21 +85,34 @@ export function redirectIfLoggedIn() {
 // ──────────────────────────────────────────────────
 
 export function updateNavbar() {
-  const loginLink   = document.getElementById('login-link') || document.getElementById('nav-login');
-  const logoutBtn   = document.getElementById('nav-logout');
-  const profileLink = document.getElementById('nav-profile');
-  const addPlaceLink = document.getElementById('nav-add-place');
+  if (!isLoggedIn()) {
+    apiGetCurrentUser()
+      .then((response) => {
+        if (response?.user) {
+          storeUser(response.user);
+          updateNavbar();
+        }
+      })
+      .catch(() => {});
+  }
+
+  const loginLink =
+    document.getElementById("login-link") ||
+    document.getElementById("nav-login");
+  const logoutBtn = document.getElementById("nav-logout");
+  const profileLink = document.getElementById("nav-profile");
+  const addPlaceLink = document.getElementById("nav-add-place");
 
   if (isLoggedIn()) {
-    if (loginLink)    loginLink.style.display    = 'none';
-    if (logoutBtn)    logoutBtn.style.display    = 'inline-flex';
-    if (profileLink)  profileLink.style.display  = 'inline-flex';
-    if (addPlaceLink) addPlaceLink.style.display = 'inline-flex';
+    if (loginLink) loginLink.hidden = true;
+    if (logoutBtn) logoutBtn.hidden = false;
+    if (profileLink) profileLink.hidden = false;
+    if (addPlaceLink) addPlaceLink.hidden = false;
   } else {
-    if (loginLink)    loginLink.style.display    = 'inline-flex';
-    if (logoutBtn)    logoutBtn.style.display    = 'none';
-    if (profileLink)  profileLink.style.display  = 'none';
-    if (addPlaceLink) addPlaceLink.style.display = 'none';
+    if (loginLink) loginLink.hidden = false;
+    if (logoutBtn) logoutBtn.hidden = true;
+    if (profileLink) profileLink.hidden = true;
+    if (addPlaceLink) addPlaceLink.hidden = true;
   }
 }
 
@@ -83,9 +120,14 @@ export function updateNavbar() {
 // Logout
 // ──────────────────────────────────────────────────
 
-export function logout() {
-  removeToken();
-  window.location.href = 'login.html';
+export async function logout() {
+  try {
+    await apiLogout();
+  } catch {
+    // Keep local cleanup even if backend logout fails.
+  }
+  storeUser(null);
+  window.location.href = "login.html";
 }
 
 // ──────────────────────────────────────────────────
@@ -95,22 +137,22 @@ export function logout() {
 export function initLoginPage() {
   redirectIfLoggedIn();
 
-  const form    = document.getElementById('login-form');
-  const alert   = document.getElementById('login-alert');
-  const btnText = document.getElementById('btn-text');
-  const spinner = document.getElementById('btn-spinner');
+  const form = document.getElementById("login-form");
+  const alert = document.getElementById("login-alert");
+  const btnText = document.getElementById("btn-text");
+  const spinner = document.getElementById("btn-spinner");
 
   if (!form) return;
 
-  form.addEventListener('submit', async (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     hideAlert(alert);
 
-    const email    = form.querySelector('#email').value.trim();
-    const password = form.querySelector('#password').value;
+    const email = form.querySelector("#email").value.trim();
+    const password = form.querySelector("#password").value;
 
     if (!email || !password) {
-      showAlert(alert, 'Please fill in all fields.');
+      showAlert(alert, "Please fill in all fields.");
       return;
     }
 
@@ -118,12 +160,11 @@ export function initLoginPage() {
 
     try {
       const data = await apiLogin(email, password);
-      const token = data.access_token || data.token;
-      if (!token) throw new Error('No token received from server.');
-      setToken(token);
-      window.location.href = 'index.html';
+      if (!data?.user) throw new Error("No user received from server.");
+      storeUser(data.user);
+      window.location.href = "index.html";
     } catch (err) {
-      showAlert(alert, err.message || 'Login failed. Please try again.');
+      showAlert(alert, err.message || "Login failed. Please try again.");
     } finally {
       setLoading(btnText, spinner, false);
     }
@@ -137,18 +178,18 @@ export function initLoginPage() {
 function showAlert(el, message) {
   if (!el) return;
   el.textContent = message;
-  el.classList.add('show');
+  el.classList.add("show");
 }
 
 function hideAlert(el) {
   if (!el) return;
-  el.classList.remove('show');
-  el.textContent = '';
+  el.classList.remove("show");
+  el.textContent = "";
 }
 
 function setLoading(btnText, spinner, loading) {
-  if (btnText)  btnText.textContent  = loading ? 'Signing in…' : 'Sign In';
-  if (spinner)  spinner.style.display = loading ? 'inline-block' : 'none';
-  const btn = document.getElementById('login-btn');
+  if (btnText) btnText.textContent = loading ? "Signing in…" : "Sign In";
+  if (spinner) spinner.hidden = !loading;
+  const btn = document.getElementById("login-btn");
   if (btn) btn.disabled = loading;
 }

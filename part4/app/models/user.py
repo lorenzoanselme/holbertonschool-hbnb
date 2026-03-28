@@ -39,8 +39,24 @@ class User(BaseModel):
         self.profile_picture_url = profile_picture_url
         self.hash_password(password)
 
+    @staticmethod
+    def validate_password_policy(password):
+        password = password or ""
+        if len(password) < 10:
+            raise ValueError("password must be at least 10 characters long")
+        if len(password.encode("utf-8")) > 72:
+            raise ValueError("password must be 72 bytes or fewer")
+        if not re.search(r"[A-Z]", password):
+            raise ValueError("password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", password):
+            raise ValueError("password must contain at least one lowercase letter")
+        if not re.search(r"\d", password):
+            raise ValueError("password must contain at least one digit")
+        return password
+
     def hash_password(self, password):
         """Hashes the password before storing it."""
+        password = self.validate_password_policy(password)
         self.password = bcrypt.generate_password_hash(password).decode("utf-8")
 
     def verify_password(self, password):

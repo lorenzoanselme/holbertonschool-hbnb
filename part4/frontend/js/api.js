@@ -5,26 +5,15 @@
 
 const API_BASE_URL =
   window.HBNB_API_BASE_URL ||
-  `${window.location.protocol}//${window.location.hostname}:5001/api/v1`;
+  `${window.location.protocol}//${window.location.hostname}:${window.location.protocol === "https:" ? "5443" : "5001"}/api/v1`;
 
-// ──────────────────────────────────────────────────
-// Cookie helpers
-// ──────────────────────────────────────────────────
-
-export function getCookie(name) {
+function getCookie(name) {
   const match = document.cookie.match(
-    new RegExp("(?:^|; )" + name + "=([^;]*)"),
+    new RegExp(
+      `(?:^|; )${name.replace(/[.*+?^${}()|[\]\\\\]/g, "\\$&")}=([^;]*)`,
+    ),
   );
   return match ? decodeURIComponent(match[1]) : null;
-}
-
-export function setCookie(name, value, days = 1) {
-  const expires = new Date(Date.now() + days * 864e5).toUTCString();
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
-}
-
-export function deleteCookie(name) {
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
 }
 
 // ──────────────────────────────────────────────────
@@ -32,18 +21,25 @@ export function deleteCookie(name) {
 // ──────────────────────────────────────────────────
 
 async function request(endpoint, options = {}) {
-  const token = getCookie("token");
-
+  const suppressUnauthorizedRedirect = Boolean(
+    options.suppressUnauthorizedRedirect,
+  );
   const headers = {
     ...(options.headers || {}),
   };
+
+  delete options.suppressUnauthorizedRedirect;
 
   if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  const method = String(options.method || "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const csrfToken = getCookie("csrf_access_token");
+    if (csrfToken) {
+      headers["X-CSRF-TOKEN"] = csrfToken;
+    }
   }
 
   let response;
@@ -51,6 +47,7 @@ async function request(endpoint, options = {}) {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
+      credentials: "include",
     });
   } catch (networkError) {
     console.error(
@@ -66,7 +63,10 @@ async function request(endpoint, options = {}) {
   // 401 → clear token + redirect
   if (response.status === 401) {
     console.warn("[HBnB] 401 Unauthorized — redirecting to login");
-    deleteCookie("token");
+    if (suppressUnauthorizedRedirect) {
+      return null;
+    }
+    localStorage.removeItem("hbnb-current-user");
     window.location.href = "login.html";
     return null;
   }
@@ -104,6 +104,7 @@ export async function apiRegister(first_name, last_name, email, password) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ first_name, last_name, email, password }),
+    credentials: "include",
   });
 
   let body;
@@ -125,6 +126,7 @@ export async function apiLogin(email, password) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
+    credentials: "include",
   });
 
   let body;
@@ -138,7 +140,18 @@ export async function apiLogin(email, password) {
     throw new Error(body.message || body.error || "Invalid credentials");
   }
 
-  return body; // { access_token: "..." }
+  return body;
+}
+
+export async function apiGetCurrentUser() {
+  return request("/auth/me", { suppressUnauthorizedRedirect: true });
+}
+
+export async function apiLogout() {
+  return request("/auth/logout", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
 }
 
 // ──────────────────────────────────────────────────

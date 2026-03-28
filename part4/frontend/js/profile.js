@@ -15,7 +15,7 @@ import {
   apiUploadPlacePhoto,
   apiUploadProfilePhoto,
   apiUpdateUser,
-} from "./api.js?v=20260328i";
+} from "./api.js?v=20260328s";
 
 let currentViewerId = null;
 let currentProfileId = null;
@@ -67,18 +67,12 @@ function getRequestedProfileId() {
 }
 
 function configureProfileMode() {
-  document.getElementById("profile-form-card").style.display = isOwnProfile
-    ? "block"
-    : "none";
+  document.getElementById("profile-form-card").hidden = !isOwnProfile;
   document.getElementById("places-section-title").textContent = isOwnProfile
     ? "Your places"
     : "Hosted places";
-  document.getElementById("notifications-section").style.display = isOwnProfile
-    ? "block"
-    : "none";
-  document.getElementById("my-reviews-section").style.display = isOwnProfile
-    ? "block"
-    : "none";
+  document.getElementById("notifications-section").hidden = !isOwnProfile;
+  document.getElementById("my-reviews-section").hidden = !isOwnProfile;
   const avatar = document.getElementById("profile-avatar");
   if (avatar) {
     avatar.classList.toggle("profile-avatar-editable", isOwnProfile);
@@ -205,20 +199,21 @@ async function loadPlaces(userId) {
 
     if (ownedPlaces.length === 0) {
       container.className = "";
-      container.innerHTML = `
-        <div class="empty-state fade-in">
-          <div class="empty-state-icon">🏠</div>
-          <h3>No places yet</h3>
-          <p>${isOwnProfile ? 'Use the "Add Place" button to publish your first listing.' : "This host has not published any places yet."}</p>
-        </div>
-      `;
+      renderEmptyState(
+        container,
+        "🏠",
+        "No places yet",
+        isOwnProfile
+          ? 'Use the "Add Place" button to publish your first listing.'
+          : "This host has not published any places yet.",
+      );
       return;
     }
 
     container.className = "places-list places-grid";
-    container.innerHTML = ownedPlaces
-      .map((place) => renderPlaceCard(place))
-      .join("");
+    container.replaceChildren(
+      ...ownedPlaces.map((place) => renderPlaceCard(place)),
+    );
 
     container
       .querySelectorAll('[data-action="edit-place"]')
@@ -240,13 +235,12 @@ async function loadPlaces(userId) {
       });
   } catch (err) {
     container.className = "";
-    container.innerHTML = `
-      <div class="empty-state fade-in">
-        <div class="empty-state-icon">⚠️</div>
-        <h3>Could not load places</h3>
-        <p>${escapeHtml(err.message || "An unexpected error occurred.")}</p>
-      </div>
-    `;
+    renderEmptyState(
+      container,
+      "⚠️",
+      "Could not load places",
+      err.message || "An unexpected error occurred.",
+    );
   }
 }
 
@@ -261,75 +255,91 @@ async function loadNotifications() {
     const unreadCount = Array.isArray(notifications)
       ? notifications.filter((notification) => !notification.is_read).length
       : 0;
-    if (readAllBtn)
-      readAllBtn.style.display = unreadCount > 0 ? "inline-flex" : "none";
+    if (readAllBtn) readAllBtn.hidden = unreadCount === 0;
     if (deleteAllBtn) {
-      deleteAllBtn.style.display =
+      deleteAllBtn.hidden = !(
         Array.isArray(notifications) && notifications.length > 0
-          ? "inline-flex"
-          : "none";
+      );
     }
     if (!Array.isArray(notifications) || notifications.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state fade-in">
-          <div class="empty-state-icon">🔔</div>
-          <h3>No notifications</h3>
-          <p>You will see new reviews for your places here.</p>
-        </div>
-      `;
+      renderEmptyState(
+        container,
+        "🔔",
+        "No notifications",
+        "You will see new reviews for your places here.",
+      );
       return;
     }
 
-    container.innerHTML = notifications
-      .map(
-        (notification) => `
-          <article class="notification-card ${notification.is_read ? "is-read" : "is-unread"}">
-            <div class="notification-copy">
-              <p class="notification-message">${escapeHtml(notification.message)}</p>
-              <p class="notification-date">${formatDate(notification.created_at)}</p>
-            </div>
-            <div class="notification-actions">
-              <a href="place.html?id=${encodeURIComponent(notification.place_id)}" class="details-button">View place</a>
-              ${
-                notification.is_read
-                  ? ""
-                  : `<button type="button" class="login-button" data-action="mark-read" data-notification-id="${escapeHtml(notification.id)}">Mark as read</button>`
-              }
-              <button type="button" class="login-button" data-action="delete-notification" data-notification-id="${escapeHtml(notification.id)}">Delete</button>
-            </div>
-          </article>
-        `,
-      )
-      .join("");
-
-    container
-      .querySelectorAll('[data-action="mark-read"]')
-      .forEach((button) => {
-        button.addEventListener("click", async () => {
-          await apiMarkNotificationRead(button.dataset.notificationId);
-          await loadNotifications();
-        });
-      });
-
-    container
-      .querySelectorAll('[data-action="delete-notification"]')
-      .forEach((button) => {
-        button.addEventListener("click", async () => {
-          await apiDeleteNotification(button.dataset.notificationId);
-          await loadNotifications();
-        });
-      });
+    container.replaceChildren(
+      ...notifications.map((notification) =>
+        createNotificationCard(notification),
+      ),
+    );
   } catch (err) {
-    if (readAllBtn) readAllBtn.style.display = "none";
-    if (deleteAllBtn) deleteAllBtn.style.display = "none";
-    container.innerHTML = `
-      <div class="empty-state fade-in">
-        <div class="empty-state-icon">⚠️</div>
-        <h3>Could not load notifications</h3>
-        <p>${escapeHtml(err.message || "An unexpected error occurred.")}</p>
-      </div>
-    `;
+    if (readAllBtn) readAllBtn.hidden = true;
+    if (deleteAllBtn) deleteAllBtn.hidden = true;
+    renderEmptyState(
+      container,
+      "⚠️",
+      "Could not load notifications",
+      err.message || "An unexpected error occurred.",
+    );
   }
+}
+
+function createNotificationCard(notification) {
+  const article = document.createElement("article");
+  article.className = `notification-card ${notification.is_read ? "is-read" : "is-unread"}`;
+
+  const copy = document.createElement("div");
+  copy.className = "notification-copy";
+
+  const message = document.createElement("p");
+  message.className = "notification-message";
+  message.textContent = notification.message || "Notification";
+
+  const date = document.createElement("p");
+  date.className = "notification-date";
+  date.textContent = formatDate(notification.created_at);
+
+  copy.appendChild(message);
+  copy.appendChild(date);
+
+  const actions = document.createElement("div");
+  actions.className = "notification-actions";
+
+  const placeLink = document.createElement("a");
+  placeLink.href = `place.html?id=${encodeURIComponent(notification.place_id)}`;
+  placeLink.className = "details-button";
+  placeLink.textContent = "View place";
+  actions.appendChild(placeLink);
+
+  if (!notification.is_read) {
+    const markReadButton = document.createElement("button");
+    markReadButton.type = "button";
+    markReadButton.className = "login-button";
+    markReadButton.textContent = "Mark as read";
+    markReadButton.addEventListener("click", async () => {
+      await apiMarkNotificationRead(notification.id);
+      await loadNotifications();
+    });
+    actions.appendChild(markReadButton);
+  }
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "login-button";
+  deleteButton.textContent = "Delete";
+  deleteButton.addEventListener("click", async () => {
+    await apiDeleteNotification(notification.id);
+    await loadNotifications();
+  });
+  actions.appendChild(deleteButton);
+
+  article.appendChild(copy);
+  article.appendChild(actions);
+  return article;
 }
 
 async function loadMyReviews() {
@@ -346,13 +356,12 @@ async function loadMyReviews() {
       : [];
 
     if (myReviews.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state fade-in">
-          <div class="empty-state-icon">✍️</div>
-          <h3>No reviews yet</h3>
-          <p>Your posted reviews will appear here.</p>
-        </div>
-      `;
+      renderEmptyState(
+        container,
+        "✍️",
+        "No reviews yet",
+        "Your posted reviews will appear here.",
+      );
       return;
     }
 
@@ -360,23 +369,21 @@ async function loadMyReviews() {
       (Array.isArray(places) ? places : []).map((place) => [place.id, place]),
     );
 
-    container.innerHTML = `
-      <div class="profile-review-list">
-        ${myReviews
-          .map((review) =>
-            renderMyReviewCard(review, placeMap.get(review.place_id)),
-          )
-          .join("")}
-      </div>
-    `;
+    const list = document.createElement("div");
+    list.className = "profile-review-list";
+    myReviews.forEach((review) => {
+      list.appendChild(
+        renderMyReviewCard(review, placeMap.get(review.place_id)),
+      );
+    });
+    container.replaceChildren(list);
   } catch (err) {
-    container.innerHTML = `
-      <div class="empty-state fade-in">
-        <div class="empty-state-icon">⚠️</div>
-        <h3>Could not load your reviews</h3>
-        <p>${escapeHtml(err.message || "An unexpected error occurred.")}</p>
-      </div>
-    `;
+    renderEmptyState(
+      container,
+      "⚠️",
+      "Could not load your reviews",
+      err.message || "An unexpected error occurred.",
+    );
   }
 }
 
@@ -395,19 +402,38 @@ function renderMyReviewCard(review, place = null) {
   const stars =
     "★".repeat(Math.max(0, Math.min(5, review.rating || 0))) +
     "☆".repeat(Math.max(0, 5 - (review.rating || 0)));
+  const article = document.createElement("article");
+  article.className = "profile-review-card";
 
-  return `
-    <article class="profile-review-card">
-      <div class="profile-review-header">
-        <div>
-          <p class="profile-review-place-label">Place</p>
-          <a href="place.html?id=${encodeURIComponent(review.place_id)}" class="profile-review-place-link">${escapeHtml(placeTitle)}</a>
-        </div>
-        <span class="profile-review-stars">${stars}</span>
-      </div>
-      <p class="profile-review-text">${escapeHtml(review.text || "")}</p>
-    </article>
-  `;
+  const header = document.createElement("div");
+  header.className = "profile-review-header";
+
+  const left = document.createElement("div");
+
+  const label = document.createElement("p");
+  label.className = "profile-review-place-label";
+  label.textContent = "Place";
+
+  const link = document.createElement("a");
+  link.href = `place.html?id=${encodeURIComponent(review.place_id)}`;
+  link.className = "profile-review-place-link";
+  link.textContent = placeTitle;
+
+  const starsEl = document.createElement("span");
+  starsEl.className = "profile-review-stars";
+  starsEl.textContent = stars;
+
+  const text = document.createElement("p");
+  text.className = "profile-review-text";
+  text.textContent = review.text || "";
+
+  left.appendChild(label);
+  left.appendChild(link);
+  header.appendChild(left);
+  header.appendChild(starsEl);
+  article.appendChild(header);
+  article.appendChild(text);
+  return article;
 }
 
 function fillProfileForm(user) {
@@ -687,26 +713,38 @@ function renderPlacePhotoPreview(imageUrls, title) {
     preview.hidden = false;
     placeholder.hidden = true;
     label.textContent = "Add or change photos";
-    gallery.innerHTML = imageUrls
-      .map(
-        (imageUrl, index) => `
-          <div class="place-photo-gallery-item">
-            <img src="${escapeHtml(resolvePlaceImageUrl(imageUrl))}" alt="${escapeHtml(title || `Place photo ${index + 1}`)}" class="place-photo-gallery-image">
-            <button type="button" class="place-photo-remove" data-image-index="${index}" aria-label="Remove photo">Remove</button>
-          </div>
-        `,
-      )
-      .join("");
-    gallery.querySelectorAll("[data-image-index]").forEach((button) => {
-      button.addEventListener("click", () => {
-        currentPlaceImageUrls.splice(Number(button.dataset.imageIndex), 1);
-        syncPlaceImageFields();
-        renderPlacePhotoPreview(
-          currentPlaceImageUrls,
-          document.getElementById("place_title").value.trim(),
-        );
-      });
-    });
+    gallery.replaceChildren(
+      ...imageUrls.map((imageUrl, index) => {
+        const item = document.createElement("div");
+        item.className = "place-photo-gallery-item";
+
+        const image = document.createElement("img");
+        image.src = resolvePlaceImageUrl(imageUrl);
+        image.alt = title
+          ? `${title} photo ${index + 1}`
+          : `Place photo ${index + 1}`;
+        image.className = "place-photo-gallery-image";
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "place-photo-remove";
+        button.setAttribute("aria-label", "Remove photo");
+        button.textContent = "Remove";
+        button.dataset.imageIndex = String(index);
+        button.addEventListener("click", () => {
+          currentPlaceImageUrls.splice(Number(button.dataset.imageIndex), 1);
+          syncPlaceImageFields();
+          renderPlacePhotoPreview(
+            currentPlaceImageUrls,
+            document.getElementById("place_title").value.trim(),
+          );
+        });
+
+        item.appendChild(image);
+        item.appendChild(button);
+        return item;
+      }),
+    );
     return;
   }
 
@@ -714,7 +752,7 @@ function renderPlacePhotoPreview(imageUrls, title) {
   preview.removeAttribute("src");
   placeholder.hidden = false;
   label.textContent = "Choose photos from your device";
-  gallery.innerHTML = "";
+  gallery.replaceChildren();
 }
 
 function syncPlaceImageFields() {
@@ -730,22 +768,32 @@ function renderAmenityChoices(items) {
   if (!container) return;
 
   if (!Array.isArray(items) || items.length === 0) {
-    container.innerHTML =
-      '<p style="color:var(--text-muted);font-size:0.875rem;">No amenities available.</p>';
+    const message = document.createElement("p");
+    message.className = "helper-text-muted";
+    message.textContent = "No amenities available.";
+    container.replaceChildren(message);
     updateAmenitySelectionSummary();
     return;
   }
 
-  container.innerHTML = items
-    .map(
-      (amenity) => `
-    <label class="amenity-option">
-      <input type="checkbox" value="${escapeHtml(amenity.id)}">
-      <span class="amenity-option-label">${escapeHtml(amenity.name)}</span>
-    </label>
-  `,
-    )
-    .join("");
+  container.replaceChildren(
+    ...items.map((amenity) => {
+      const label = document.createElement("label");
+      label.className = "amenity-option";
+
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.value = amenity.id;
+
+      const span = document.createElement("span");
+      span.className = "amenity-option-label";
+      span.textContent = amenity.name;
+
+      label.appendChild(input);
+      label.appendChild(span);
+      return label;
+    }),
+  );
 
   container
     .querySelectorAll('input[type="checkbox"]')
@@ -882,28 +930,71 @@ function renderPlaceCard(place) {
     ? `${place.description.slice(0, 120)}${place.description.length > 120 ? "…" : ""}`
     : "No description available.";
   const imageUrl = resolvePlaceImageUrl(getPrimaryPlaceImage(place));
+  const article = document.createElement("article");
+  article.className = "place-card fade-in";
 
-  return `
-    <article class="place-card fade-in">
-      <div class="place-card-image-wrapper"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(place.title || "Place image")}" class="place-card-image" onerror="this.onerror=null;this.src='${window.location.origin}/assets/demo-places/paris-studio.jpg';"></div>
-      <h3 class="place-card-title">${escapeHtml(place.title || "Untitled place")}</h3>
-      <div class="place-card-meta">
-        <span class="badge badge-price">${escapeHtml(price)}</span>
-      </div>
-      <p class="place-card-desc">${escapeHtml(description)}</p>
-      <div class="profile-place-actions">
-        <a href="place.html?id=${encodeURIComponent(place.id)}" class="details-button">View</a>
-        ${
-          isOwnProfile
-            ? `
-          <button type="button" class="login-button" data-action="edit-place" data-place-id="${escapeHtml(place.id)}">Edit</button>
-          <button type="button" class="login-button profile-delete-btn" data-action="delete-place" data-place-id="${escapeHtml(place.id)}">Delete</button>
-        `
-            : ""
-        }
-      </div>
-    </article>
-  `;
+  const imageWrapper = document.createElement("div");
+  imageWrapper.className = "place-card-image-wrapper";
+
+  const image = document.createElement("img");
+  image.src = imageUrl;
+  image.alt = place.title || "Place image";
+  image.className = "place-card-image";
+  image.addEventListener("error", () => {
+    image.src = `${window.location.origin}/assets/demo-places/paris-studio.jpg`;
+  });
+  imageWrapper.appendChild(image);
+
+  const title = document.createElement("h3");
+  title.className = "place-card-title";
+  title.textContent = place.title || "Untitled place";
+
+  const meta = document.createElement("div");
+  meta.className = "place-card-meta";
+
+  const badge = document.createElement("span");
+  badge.className = "badge badge-price";
+  badge.textContent = price;
+  meta.appendChild(badge);
+
+  const desc = document.createElement("p");
+  desc.className = "place-card-desc";
+  desc.textContent = description;
+
+  const actions = document.createElement("div");
+  actions.className = "profile-place-actions";
+
+  const viewLink = document.createElement("a");
+  viewLink.href = `place.html?id=${encodeURIComponent(place.id)}`;
+  viewLink.className = "details-button";
+  viewLink.textContent = "View";
+  actions.appendChild(viewLink);
+
+  if (isOwnProfile) {
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "login-button";
+    editButton.dataset.action = "edit-place";
+    editButton.dataset.placeId = place.id;
+    editButton.textContent = "Edit";
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "login-button profile-delete-btn";
+    deleteButton.dataset.action = "delete-place";
+    deleteButton.dataset.placeId = place.id;
+    deleteButton.textContent = "Delete";
+
+    actions.appendChild(editButton);
+    actions.appendChild(deleteButton);
+  }
+
+  article.appendChild(imageWrapper);
+  article.appendChild(title);
+  article.appendChild(meta);
+  article.appendChild(desc);
+  article.appendChild(actions);
+  return article;
 }
 
 function showAlert(elementId, message, type = "error") {
@@ -920,7 +1011,7 @@ function setLoading(scope, loading) {
     const spinner = document.getElementById("profile-spinner");
     if (btn) btn.disabled = loading;
     if (text) text.textContent = loading ? "Saving…" : "Save Profile";
-    if (spinner) spinner.style.display = loading ? "inline-block" : "none";
+    if (spinner) spinner.hidden = !loading;
     return;
   }
 
@@ -934,7 +1025,7 @@ function setLoading(scope, loading) {
       : editingPlaceId
         ? "Save changes"
         : "Create place";
-  if (spinner) spinner.style.display = loading ? "inline-block" : "none";
+  if (spinner) spinner.hidden = !loading;
 }
 
 function getInitials(firstName, lastName) {
@@ -944,9 +1035,39 @@ function getInitials(firstName, lastName) {
 function renderAvatar(user) {
   const fullName =
     `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Host";
-  document.getElementById("profile-avatar").innerHTML = user.profile_picture_url
-    ? `<img src="${escapeHtml(user.profile_picture_url)}" alt="${escapeHtml(fullName)}">`
-    : escapeHtml(getInitials(user.first_name, user.last_name));
+  const avatar = document.getElementById("profile-avatar");
+  if (!avatar) return;
+
+  avatar.replaceChildren();
+  if (user.profile_picture_url) {
+    const image = document.createElement("img");
+    image.src = user.profile_picture_url;
+    image.alt = fullName;
+    avatar.appendChild(image);
+    return;
+  }
+
+  avatar.textContent = getInitials(user.first_name, user.last_name);
+}
+
+function renderEmptyState(container, icon, title, message) {
+  const state = document.createElement("div");
+  state.className = "empty-state fade-in";
+
+  const iconEl = document.createElement("div");
+  iconEl.className = "empty-state-icon";
+  iconEl.textContent = icon;
+
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+
+  const body = document.createElement("p");
+  body.textContent = message;
+
+  state.appendChild(iconEl);
+  state.appendChild(heading);
+  state.appendChild(body);
+  container.replaceChildren(state);
 }
 
 function escapeHtml(str) {

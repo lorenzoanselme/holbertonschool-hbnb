@@ -3,14 +3,15 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'; media-src 'self'; img-src 'self' data: blob: https:; style-src 'self' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com; connect-src 'self' http://localhost:5001 http://127.0.0.1:5001 https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org;"
+        />
         <title>Sign In — HBnB</title>
         <link rel="icon" type="image/png" href="assets/logo.png" />
         <link rel="stylesheet" href="css/styles.css?v=20260328r" />
-        <script>
-            if (localStorage.getItem("hbnb-theme") === "dark")
-                document.documentElement.dataset.theme = "dark";
-        </script>
-        <script src="js/runtime-config.js"></script>
+        <script src="js/theme-boot.js?v=20260328t"></script>
+        <script src="js/runtime-config.js?v=20260328s"></script>
     </head>
     <body>
         <div class="page-wrapper">
@@ -86,37 +87,23 @@
                         <button
                             type="submit"
                             id="login-btn"
-                            class="btn btn-primary btn-lg btn-block"
-                            style="margin-top: 8px"
+                            class="btn btn-primary btn-lg btn-block auth-submit-button"
                         >
                             <span id="btn-text">Sign In</span>
                             <span
                                 id="btn-spinner"
-                                class="spinner"
-                                style="
-                                    display: none;
-                                    width: 18px;
-                                    height: 18px;
-                                    border-width: 2px;
-                                "
+                                class="spinner spinner-compact"
+                                hidden
                                 aria-hidden="true"
                             ></span>
                         </button>
                     </form>
 
-                    <p
-                        style="
-                            text-align: center;
-                            margin-top: 24px;
-                            font-size: 0.875rem;
-                            color: var(--text-secondary);
-                        "
-                    >
+                    <p class="auth-footer-copy">
                         No account yet?
                         <a
                             href="register.html"
-                            class="login-button"
-                            style="padding: 4px 10px; margin-left: 4px"
+                            class="login-button auth-footer-link"
                             >Sign up</a
                         >
                     </p>
@@ -128,11 +115,6 @@
             </footer>
         </div>
 
-        <script type="module">
-            import { initTheme } from "./js/theme.js";
-            import { initLoginPage } from "./js/auth.js";
-            initTheme();
-            initLoginPage();
-        </script>
+        <script type="module" src="js/login-page.js?v=20260328t"></script>
     </body>
 </html>

@@ -3,14 +3,15 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; manifest-src 'self'; media-src 'self'; img-src 'self' data: blob: https:; style-src 'self' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://unpkg.com; connect-src 'self' http://localhost:5001 http://127.0.0.1:5001 https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org;"
+        />
         <title>Profile — HBnB</title>
         <link rel="icon" type="image/png" href="assets/logo.png" />
         <link rel="stylesheet" href="css/styles.css?v=20260328r" />
-        <script>
-            if (localStorage.getItem("hbnb-theme") === "dark")
-                document.documentElement.dataset.theme = "dark";
-        </script>
-        <script src="js/runtime-config.js?v=20260328j"></script>
+        <script src="js/theme-boot.js?v=20260328t"></script>
+        <script src="js/runtime-config.js?v=20260328s"></script>
     </head>
     <body>
         <div class="page-wrapper">
@@ -43,28 +44,28 @@
                             href="profile.html?action=new-place"
                             id="nav-add-place"
                             class="login-button"
-                            style="display: none"
+                            hidden
                             >+ Add Place</a
                         >
                         <a
                             href="profile.html"
                             id="nav-profile"
                             class="login-button"
-                            style="display: none"
+                            hidden
                             >My Profile</a
                         >
                         <a
                             href="login.html"
                             id="login-link"
                             class="login-button"
-                            style="display: none"
+                            hidden
                             >Login</a
                         >
                         <button
                             type="button"
                             id="nav-logout"
                             class="login-button"
-                            style="display: none"
+                            hidden
                         >
                             Sign Out
                         </button>
@@ -115,7 +116,7 @@
                         <section
                             id="notifications-section"
                             class="detail-card fade-in profile-inline-panel"
-                            style="display: none"
+                            hidden
                         >
                             <div class="profile-section-header">
                                 <div>
@@ -235,13 +236,8 @@
                                     >
                                     <span
                                         id="profile-spinner"
-                                        class="spinner"
-                                        style="
-                                            display: none;
-                                            width: 18px;
-                                            height: 18px;
-                                            border-width: 2px;
-                                        "
+                                        class="spinner spinner-compact"
+                                        hidden
                                         aria-hidden="true"
                                     ></span>
                                 </button>
@@ -253,7 +249,7 @@
                 <section
                     id="my-reviews-section"
                     class="detail-card fade-in"
-                    style="display: none"
+                    hidden
                 >
                     <div class="profile-section-header">
                         <div>
@@ -458,13 +454,8 @@
                             <span id="place-save-btn-text">Save place</span>
                             <span
                                 id="place-save-spinner"
-                                class="spinner"
-                                style="
-                                    display: none;
-                                    width: 18px;
-                                    height: 18px;
-                                    border-width: 2px;
-                                "
+                                class="spinner spinner-compact"
+                                hidden
                                 aria-hidden="true"
                             ></span>
                         </button>
@@ -514,10 +505,7 @@
             </footer>
         </div>
 
-        <script type="module">
-            import { initTheme } from "./js/theme.js";
-            initTheme();
-        </script>
-        <script type="module" src="js/profile.js?v=20260328j"></script>
+        <script type="module" src="js/theme-autoload.js?v=20260328t"></script>
+        <script type="module" src="js/profile.js?v=20260328s"></script>
     </body>
 </html>

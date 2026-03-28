@@ -129,11 +129,10 @@ function renderCurrentResults() {
   }
 
   if (userLocation && nearbyOnly) {
-    filtered = filtered.filter(
-      (place) =>
-        place.distanceKm != null && !Number.isNaN(place.distanceKm)
-          ? place.distanceKm <= maxDistanceKm
-          : false,
+    filtered = filtered.filter((place) =>
+      place.distanceKm != null && !Number.isNaN(place.distanceKm)
+        ? place.distanceKm <= maxDistanceKm
+        : false,
     );
   }
 
@@ -151,7 +150,9 @@ function renderCurrentResults() {
   }
 
   renderPlaces(grid, filtered);
-  updateResultsSummary(buildResultsSummary(filtered, maxDistanceKm, nearbyOnly));
+  updateResultsSummary(
+    buildResultsSummary(filtered, maxDistanceKm, nearbyOnly),
+  );
 }
 
 function computePlaceDistance(place) {
@@ -188,11 +189,10 @@ function sortPlaces(left, right, maxDistanceKm) {
 
 function buildResultsSummary(places, maxDistanceKm, nearbyOnly) {
   if (userLocation) {
-    const nearbyCount = places.filter(
-      (place) =>
-        place.distanceKm != null && !Number.isNaN(place.distanceKm)
-          ? place.distanceKm <= maxDistanceKm
-          : false,
+    const nearbyCount = places.filter((place) =>
+      place.distanceKm != null && !Number.isNaN(place.distanceKm)
+        ? place.distanceKm <= maxDistanceKm
+        : false,
     ).length;
     if (nearbyOnly) {
       return `${places.length} stay(s) within ${maxDistanceKm} km of you.`;
@@ -220,14 +220,15 @@ function updateResultsSummary(message) {
 }
 
 function renderPlaces(grid, places) {
-  grid.innerHTML = "";
+  grid.replaceChildren();
   grid.className = "places-list places-grid places-grid-enhanced";
 
   places.forEach((place, index) => {
     const card = createPlaceCard(place);
-    card.style.animationDelay = `${index * 50}ms`;
     if (index === 0) {
       card.classList.add("place-card-featured");
+    } else {
+      card.classList.add("place-card-staggered");
     }
     grid.appendChild(card);
   });
@@ -236,8 +237,7 @@ function renderPlaces(grid, places) {
 function createPlaceCard(place) {
   const href = `place.html?id=${encodeURIComponent(place.id)}`;
   const card = document.createElement("article");
-  card.className = "place-card fade-in";
-  card.style.cursor = "pointer";
+  card.className = "place-card fade-in place-card-clickable";
   card.addEventListener("click", () => {
     window.location.href = href;
   });
@@ -255,59 +255,106 @@ function createPlaceCard(place) {
   const distanceCopy =
     place.distanceKm != null ? formatDistanceKm(place.distanceKm) : null;
 
-  card.innerHTML = `
-    <div class="place-card-image-wrapper">
-      <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)}" class="place-card-image" onerror="this.onerror=null;this.src='${window.location.origin}/assets/demo-places/paris-studio.jpg';">
-    </div>
-    <div class="place-card-headline">
-      <h2 class="place-card-title">${escapeHtml(title)}</h2>
-      <div class="place-card-meta">
-        <span class="badge badge-price">${escapeHtml(price)}</span>
-        ${
-          distanceCopy
-            ? `<span class="badge badge-distance">${escapeHtml(distanceCopy)}</span>`
-            : ""
-        }
-      </div>
-    </div>
-    <p class="place-card-desc">${escapeHtml(desc)}</p>
-    <div class="place-card-footer">
-      <a href="${href}" class="details-button">View Details</a>
-    </div>
-  `;
+  const imageWrapper = document.createElement("div");
+  imageWrapper.className = "place-card-image-wrapper";
+
+  const image = document.createElement("img");
+  image.src = imageUrl;
+  image.alt = title;
+  image.className = "place-card-image";
+  image.addEventListener("error", () => {
+    image.src = `${window.location.origin}/assets/demo-places/paris-studio.jpg`;
+  });
+  imageWrapper.appendChild(image);
+
+  const headline = document.createElement("div");
+  headline.className = "place-card-headline";
+
+  const heading = document.createElement("h2");
+  heading.className = "place-card-title";
+  heading.textContent = title;
+
+  const meta = document.createElement("div");
+  meta.className = "place-card-meta";
+
+  const priceBadge = document.createElement("span");
+  priceBadge.className = "badge badge-price";
+  priceBadge.textContent = price;
+  meta.appendChild(priceBadge);
+
+  if (distanceCopy) {
+    const distanceBadge = document.createElement("span");
+    distanceBadge.className = "badge badge-distance";
+    distanceBadge.textContent = distanceCopy;
+    meta.appendChild(distanceBadge);
+  }
+
+  headline.appendChild(heading);
+  headline.appendChild(meta);
+
+  const description = document.createElement("p");
+  description.className = "place-card-desc";
+  description.textContent = desc;
+
+  const footer = document.createElement("div");
+  footer.className = "place-card-footer";
+
+  const detailsLink = document.createElement("a");
+  detailsLink.href = href;
+  detailsLink.className = "details-button";
+  detailsLink.textContent = "View Details";
+  footer.appendChild(detailsLink);
+
+  card.appendChild(imageWrapper);
+  card.appendChild(headline);
+  card.appendChild(description);
+  card.appendChild(footer);
 
   return card;
 }
 
 function showSpinner(container) {
   container.className = "";
-  container.innerHTML = `
-    <div class="spinner-wrapper">
-      <div class="spinner"></div>
-    </div>
-  `;
+  const wrapper = document.createElement("div");
+  wrapper.className = "spinner-wrapper";
+  const spinner = document.createElement("div");
+  spinner.className = "spinner";
+  wrapper.appendChild(spinner);
+  container.replaceChildren(wrapper);
 }
 
 function showEmpty(container, message = "No places available yet.") {
   container.className = "";
-  container.innerHTML = `
-    <div class="empty-state fade-in">
-      <div class="empty-state-icon">🏠</div>
-      <h3>Nothing here</h3>
-      <p>${escapeHtml(message)}</p>
-    </div>
-  `;
+  const state = document.createElement("div");
+  state.className = "empty-state fade-in";
+  const icon = document.createElement("div");
+  icon.className = "empty-state-icon";
+  icon.textContent = "🏠";
+  const title = document.createElement("h3");
+  title.textContent = "Nothing here";
+  const text = document.createElement("p");
+  text.textContent = message;
+  state.appendChild(icon);
+  state.appendChild(title);
+  state.appendChild(text);
+  container.replaceChildren(state);
 }
 
 function showError(container, message) {
   container.className = "";
-  container.innerHTML = `
-    <div class="empty-state fade-in">
-      <div class="empty-state-icon">⚠️</div>
-      <h3>Failed to load places</h3>
-      <p>${escapeHtml(message)}</p>
-    </div>
-  `;
+  const state = document.createElement("div");
+  state.className = "empty-state fade-in";
+  const icon = document.createElement("div");
+  icon.className = "empty-state-icon";
+  icon.textContent = "⚠️";
+  const title = document.createElement("h3");
+  title.textContent = "Failed to load places";
+  const text = document.createElement("p");
+  text.textContent = message;
+  state.appendChild(icon);
+  state.appendChild(title);
+  state.appendChild(text);
+  container.replaceChildren(state);
 }
 
 function escapeHtml(str) {

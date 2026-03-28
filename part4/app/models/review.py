@@ -30,6 +30,8 @@ class Review(BaseModel):
         value = (value or "").strip()
         if not value:
             raise ValueError("text is required")
+        if len(value) > 2000:
+            raise ValueError("text must be 2000 characters or fewer")
         return value
 
     @validates("rating")

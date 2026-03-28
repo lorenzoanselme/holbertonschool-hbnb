@@ -64,7 +64,10 @@ class Place(BaseModel):
 
     @validates("description")
     def validate_description(self, _key, value):
-        return (value or "").strip()
+        value = (value or "").strip()
+        if len(value) > 4000:
+            raise ValueError("description must be 4000 characters or fewer")
+        return value
 
     @validates("image_url")
     def validate_image_url(self, _key, value):

@@ -5,7 +5,6 @@
  */
 
 import { getCurrentUserId, updateNavbar, logout } from "./auth.js";
-import { getCookie } from "./api.js";
 import { reverseGeocode } from "./geo.js";
 import {
   apiGetPlace,
@@ -58,55 +57,59 @@ function getPlaceIdFromURL() {
 // ──────────────────────────────────────────────────
 
 function checkAuthentication() {
-  const token = getCookie("token");
-  fetchPlaceDetails(token, currentPlaceId);
+  fetchPlaceDetails(currentPlaceId);
 }
 
 // ──────────────────────────────────────────────────
 // Fetch place details
 // ──────────────────────────────────────────────────
 
-async function fetchPlaceDetails(token, placeId) {
+async function fetchPlaceDetails(placeId) {
   try {
-    const place = await apiGetPlace(placeId, token);
+    const place = await apiGetPlace(placeId);
     if (!place) return;
 
     currentIsOwner = getCurrentUserId() === place.owner_id;
-    syncReviewSection(token, place.owner_id);
+    syncReviewSection(place.owner_id);
 
-    const owner = await apiGetUser(place.owner_id, token).catch(() => null);
+    const owner = await apiGetUser(place.owner_id).catch(() => null);
     displayPlaceDetails(place, owner);
     hydratePlaceLocation(place);
 
-    await loadReviews(placeId, place.reviews, token);
+    await loadReviews(placeId, place.reviews);
   } catch (err) {
     console.error("[HBnB] Failed to load place:", err.message);
     showPlaceError(err.message);
   }
 }
 
-function syncReviewSection(token, ownerId) {
+function syncReviewSection(ownerId) {
   const section = document.getElementById("add-review");
   if (!section) return;
 
-  if (!token) {
-    section.style.display = "none";
+  if (!getCurrentUserId()) {
+    section.hidden = true;
     return;
   }
 
   const currentUserId = getCurrentUserId();
   if (currentUserId && currentUserId === ownerId) {
-    section.style.display = "block";
-    section.innerHTML = `
-      <div class="detail-card add-review-card fade-in">
-        <h2 class="section-title">Add a Review</h2>
-        <p class="owner-review-note">You cannot review your own place.</p>
-      </div>
-    `;
+    section.hidden = false;
+    const card = document.createElement("div");
+    card.className = "detail-card add-review-card fade-in";
+    const title = document.createElement("h2");
+    title.className = "section-title";
+    title.textContent = "Add a Review";
+    const note = document.createElement("p");
+    note.className = "owner-review-note";
+    note.textContent = "You cannot review your own place.";
+    card.appendChild(title);
+    card.appendChild(note);
+    section.replaceChildren(card);
     return;
   }
 
-  section.style.display = "block";
+  section.hidden = false;
   const form = document.getElementById("review-form");
   if (!form?.dataset.bound) {
     initStarSelector();
@@ -134,84 +137,166 @@ function displayPlaceDetails(place, owner) {
   const lon =
     place.longitude != null ? parseFloat(place.longitude).toFixed(4) : null;
   const amenities = place.amenities || [];
-  const hostName = owner
-    ? escapeHtml(`${owner.first_name} ${owner.last_name}`)
-    : "Unknown";
+  const hostName = owner ? `${owner.first_name} ${owner.last_name}` : "Unknown";
   const ownerBio = owner?.bio
-    ? escapeHtml(
-        owner.bio.length > 160 ? `${owner.bio.slice(0, 160)}…` : owner.bio,
-      )
+    ? owner.bio.length > 160
+      ? `${owner.bio.slice(0, 160)}…`
+      : owner.bio
     : "This host has not added a profile description yet.";
-  const ownerAvatar = owner?.profile_picture_url
-    ? `<img src="${escapeHtml(owner.profile_picture_url)}" alt="${hostName}">`
-    : `<span>${escapeHtml(getInitials(owner?.first_name, owner?.last_name))}</span>`;
   const ownerLink = owner?.id
     ? `profile.html?id=${encodeURIComponent(owner.id)}`
     : null;
+  const root = document.createElement("div");
+  root.className = "place-details fade-in";
 
-  section.innerHTML = `
-    <div class="place-details fade-in">
+  const main = document.createElement("div");
+  main.className = "place-detail-main";
 
-      <div class="place-detail-main">
+  const info = document.createElement("div");
+  info.className = "place-info";
+  info.appendChild(renderPlaceGallery(imageUrls, title));
 
-        <div class="place-info">
-          ${image}
-          <h1 class="detail-title">${escapeHtml(title)}</h1>
-          <div class="detail-meta">
-            <span class="badge badge-price">${escapeHtml(price)} / night</span>
-            ${
-              lat && lon
-                ? `
-                  <span class="coordinates" id="place-city-label">Looking up location…</span>
-                  <span class="coordinates">${lat}, ${lon}</span>
-                `
-                : ""
-            }
-          </div>
-          <div class="place-owner-card">
-            ${ownerLink ? `<a href="${ownerLink}" class="place-owner-link">` : '<div class="place-owner-link">'}
-              <div class="place-owner-avatar">${ownerAvatar}</div>
-              <div class="place-owner-copy">
-                <p class="place-owner-label">Hosted by</p>
-                <p class="place-owner-name">${hostName}</p>
-                <p class="place-owner-bio">${ownerBio}</p>
-              </div>
-            ${ownerLink ? "</a>" : "</div>"}
-          </div>
-          <p class="detail-description">${escapeHtml(desc)}</p>
-          ${
-            lat && lon
-              ? `
-                <div class="place-map-card">
-                  <div class="place-map-header">
-                    <div>
-                      <h2 class="section-title">Location</h2>
-                      <p class="place-map-copy">Explore where this stay is located on the map.</p>
-                    </div>
-                  </div>
-                  <div id="place-map" class="place-map"></div>
-                </div>
-              `
-              : ""
-          }
-          <div style="margin-top:20px;">
-            <h2 class="section-title">Amenities</h2>
-            ${renderAmenities(amenities)}
-          </div>
-        </div>
+  const heading = document.createElement("h1");
+  heading.className = "detail-title";
+  heading.textContent = title;
 
-      </div>
+  const meta = document.createElement("div");
+  meta.className = "detail-meta";
 
-      <div class="place-detail-sidebar">
-        <div class="detail-card" style="text-align:center;">
-          <p style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">Price per night</p>
-          <div class="price-display">${escapeHtml(price)}<span> / night</span></div>
-        </div>
-        <a href="index.html" class="back-link">Back to places</a>
-      </div>
+  const priceBadge = document.createElement("span");
+  priceBadge.className = "badge badge-price";
+  priceBadge.textContent = `${price} / night`;
+  meta.appendChild(priceBadge);
 
-    </div>
-  `;
+  if (lat && lon) {
+    const cityLabel = document.createElement("span");
+    cityLabel.className = "coordinates";
+    cityLabel.id = "place-city-label";
+    cityLabel.textContent = "Looking up location…";
+
+    const coordinates = document.createElement("span");
+    coordinates.className = "coordinates";
+    coordinates.textContent = `${lat}, ${lon}`;
+
+    meta.appendChild(cityLabel);
+    meta.appendChild(coordinates);
+  }
+
+  const ownerCard = document.createElement("div");
+  ownerCard.className = "place-owner-card";
+
+  const ownerWrapper = ownerLink
+    ? document.createElement("a")
+    : document.createElement("div");
+  ownerWrapper.className = "place-owner-link";
+  if (ownerLink) ownerWrapper.href = ownerLink;
+
+  const ownerAvatar = document.createElement("div");
+  ownerAvatar.className = "place-owner-avatar";
+  if (owner?.profile_picture_url) {
+    const imageNode = document.createElement("img");
+    imageNode.src = owner.profile_picture_url;
+    imageNode.alt = hostName;
+    ownerAvatar.appendChild(imageNode);
+  } else {
+    const initials = document.createElement("span");
+    initials.textContent = getInitials(owner?.first_name, owner?.last_name);
+    ownerAvatar.appendChild(initials);
+  }
+
+  const ownerCopy = document.createElement("div");
+  ownerCopy.className = "place-owner-copy";
+
+  const ownerLabel = document.createElement("p");
+  ownerLabel.className = "place-owner-label";
+  ownerLabel.textContent = "Hosted by";
+
+  const ownerName = document.createElement("p");
+  ownerName.className = "place-owner-name";
+  ownerName.textContent = hostName;
+
+  const ownerBioEl = document.createElement("p");
+  ownerBioEl.className = "place-owner-bio";
+  ownerBioEl.textContent = ownerBio;
+
+  ownerCopy.appendChild(ownerLabel);
+  ownerCopy.appendChild(ownerName);
+  ownerCopy.appendChild(ownerBioEl);
+  ownerWrapper.appendChild(ownerAvatar);
+  ownerWrapper.appendChild(ownerCopy);
+  ownerCard.appendChild(ownerWrapper);
+
+  const description = document.createElement("p");
+  description.className = "detail-description";
+  description.textContent = desc;
+
+  info.appendChild(heading);
+  info.appendChild(meta);
+  info.appendChild(ownerCard);
+  info.appendChild(description);
+
+  if (lat && lon) {
+    const mapCard = document.createElement("div");
+    mapCard.className = "place-map-card";
+    const mapHeader = document.createElement("div");
+    mapHeader.className = "place-map-header";
+    const mapHeaderCopy = document.createElement("div");
+    const mapTitle = document.createElement("h2");
+    mapTitle.className = "section-title";
+    mapTitle.textContent = "Location";
+    const mapCopy = document.createElement("p");
+    mapCopy.className = "place-map-copy";
+    mapCopy.textContent = "Explore where this stay is located on the map.";
+    mapHeaderCopy.appendChild(mapTitle);
+    mapHeaderCopy.appendChild(mapCopy);
+    mapHeader.appendChild(mapHeaderCopy);
+    const map = document.createElement("div");
+    map.id = "place-map";
+    map.className = "place-map";
+    mapCard.appendChild(mapHeader);
+    mapCard.appendChild(map);
+    info.appendChild(mapCard);
+  }
+
+  const amenitiesBlock = document.createElement("div");
+  amenitiesBlock.className = "place-amenities-block";
+  const amenitiesTitle = document.createElement("h2");
+  amenitiesTitle.className = "section-title";
+  amenitiesTitle.textContent = "Amenities";
+  amenitiesBlock.appendChild(amenitiesTitle);
+  amenitiesBlock.appendChild(renderAmenities(amenities));
+  info.appendChild(amenitiesBlock);
+
+  main.appendChild(info);
+
+  const sidebar = document.createElement("div");
+  sidebar.className = "place-detail-sidebar";
+
+  const detailCard = document.createElement("div");
+  detailCard.className = "detail-card place-price-card";
+  const sideLabel = document.createElement("p");
+  sideLabel.className = "place-price-label";
+  sideLabel.textContent = "Price per night";
+  const priceDisplay = document.createElement("div");
+  priceDisplay.className = "price-display";
+  priceDisplay.append(document.createTextNode(price));
+  const suffix = document.createElement("span");
+  suffix.textContent = " / night";
+  priceDisplay.appendChild(suffix);
+  detailCard.appendChild(sideLabel);
+  detailCard.appendChild(priceDisplay);
+
+  const backLink = document.createElement("a");
+  backLink.href = "index.html";
+  backLink.className = "back-link";
+  backLink.textContent = "Back to places";
+
+  sidebar.appendChild(detailCard);
+  sidebar.appendChild(backLink);
+
+  root.appendChild(main);
+  root.appendChild(sidebar);
+  section.replaceChildren(root);
   section.dataset.imageUrls = JSON.stringify(imageUrls);
 
   bindPlaceGallery(section);
@@ -264,38 +349,62 @@ function initPlaceMap(latitude, longitude, title) {
 
 function renderPlaceGallery(imageUrls, title) {
   const mainImage = resolvePlaceImageUrl(imageUrls[0]);
+  const gallery = document.createElement("div");
+  gallery.className = "place-gallery";
 
-  return `
-    <div class="place-gallery">
-      <div class="place-hero-image-wrapper">
-        ${
-          imageUrls.length > 1
-            ? `
-          <button type="button" class="place-gallery-nav place-gallery-nav-prev" aria-label="Previous photo">
-            ‹
-          </button>
-          <button type="button" class="place-gallery-nav place-gallery-nav-next" aria-label="Next photo">
-            ›
-          </button>
-        `
-            : ""
-        }
-        <img src="${escapeHtml(mainImage)}" alt="${escapeHtml(title)}" class="place-hero-image" id="place-main-image">
-      </div>
-      ${
-        imageUrls.length > 1
-          ? `
-            <div class="place-gallery-toolbar">
-              <p class="place-gallery-caption">Browse the photos of this stay</p>
-              <div class="place-gallery-status">
-                <span id="place-gallery-index">1</span>/<span>${imageUrls.length}</span>
-              </div>
-            </div>
-          `
-          : ""
-      }
-    </div>
-  `;
+  const wrapper = document.createElement("div");
+  wrapper.className = "place-hero-image-wrapper";
+
+  if (imageUrls.length > 1) {
+    const prev = document.createElement("button");
+    prev.type = "button";
+    prev.className = "place-gallery-nav place-gallery-nav-prev";
+    prev.setAttribute("aria-label", "Previous photo");
+    prev.textContent = "‹";
+
+    const next = document.createElement("button");
+    next.type = "button";
+    next.className = "place-gallery-nav place-gallery-nav-next";
+    next.setAttribute("aria-label", "Next photo");
+    next.textContent = "›";
+
+    wrapper.appendChild(prev);
+    wrapper.appendChild(next);
+  }
+
+  const image = document.createElement("img");
+  image.src = mainImage;
+  image.alt = title;
+  image.className = "place-hero-image";
+  image.id = "place-main-image";
+  wrapper.appendChild(image);
+  gallery.appendChild(wrapper);
+
+  if (imageUrls.length > 1) {
+    const toolbar = document.createElement("div");
+    toolbar.className = "place-gallery-toolbar";
+
+    const caption = document.createElement("p");
+    caption.className = "place-gallery-caption";
+    caption.textContent = "Browse the photos of this stay";
+
+    const status = document.createElement("div");
+    status.className = "place-gallery-status";
+    const current = document.createElement("span");
+    current.id = "place-gallery-index";
+    current.textContent = "1";
+    const total = document.createElement("span");
+    total.textContent = String(imageUrls.length);
+    status.appendChild(current);
+    status.append(document.createTextNode("/"));
+    status.appendChild(total);
+
+    toolbar.appendChild(caption);
+    toolbar.appendChild(status);
+    gallery.appendChild(toolbar);
+  }
+
+  return gallery;
 }
 
 function bindPlaceGallery(section) {
@@ -333,35 +442,47 @@ function bindPlaceGallery(section) {
 
 function renderAmenities(amenities) {
   if (!amenities || amenities.length === 0) {
-    return '<p style="color:var(--text-muted);font-size:0.875rem;">No amenities listed.</p>';
+    const empty = document.createElement("p");
+    empty.className = "helper-text-muted";
+    empty.textContent = "No amenities listed.";
+    return empty;
   }
-  const items = amenities
-    .map((a) => {
-      const name =
-        typeof a === "string" ? a : a.name || a.title || JSON.stringify(a);
-      return `<li class="amenity-tag">${escapeHtml(name)}</li>`;
-    })
-    .join("");
-  return `<ul class="amenities-list">${items}</ul>`;
+  const list = document.createElement("ul");
+  list.className = "amenities-list";
+  amenities.forEach((a) => {
+    const item = document.createElement("li");
+    item.className = "amenity-tag";
+    item.textContent =
+      typeof a === "string" ? a : a.name || a.title || JSON.stringify(a);
+    list.appendChild(item);
+  });
+  return list;
 }
 
 // ──────────────────────────────────────────────────
 // Load reviews → #reviews
 // ──────────────────────────────────────────────────
 
-async function loadReviews(placeId, embeddedReviews, token) {
+async function loadReviews(placeId, embeddedReviews) {
   const section = document.getElementById("reviews");
   if (!section) return;
-
-  section.innerHTML = `
-    <div class="detail-card fade-in">
-      <h2 class="section-title">Reviews</h2>
-      <ul class="reviews-list" id="reviews-list">
-        <li class="spinner-wrapper"><div class="spinner"></div></li>
-      </ul>
-    </div>`;
-
-  const list = document.getElementById("reviews-list");
+  const card = document.createElement("div");
+  card.className = "detail-card fade-in";
+  const title = document.createElement("h2");
+  title.className = "section-title";
+  title.textContent = "Reviews";
+  const list = document.createElement("ul");
+  list.id = "reviews-list";
+  list.className = "reviews-list";
+  const spinnerItem = document.createElement("li");
+  spinnerItem.className = "spinner-wrapper";
+  const spinner = document.createElement("div");
+  spinner.className = "spinner";
+  spinnerItem.appendChild(spinner);
+  list.appendChild(spinnerItem);
+  card.appendChild(title);
+  card.appendChild(list);
+  section.replaceChildren(card);
 
   try {
     const hasFullObjects =
@@ -371,12 +492,15 @@ async function loadReviews(placeId, embeddedReviews, token) {
 
     let reviews = hasFullObjects
       ? embeddedReviews
-      : await apiGetPlaceReviews(placeId, token);
+      : await apiGetPlaceReviews(placeId);
 
     if (!Array.isArray(reviews)) reviews = [];
 
     if (reviews.length === 0) {
-      list.innerHTML = `<li style="color:var(--text-muted);font-size:0.875rem;padding:8px 0;">No reviews yet — be the first!</li>`;
+      const item = document.createElement("li");
+      item.className = "helper-text-muted helper-text-block";
+      item.textContent = "No reviews yet — be the first!";
+      list.replaceChildren(item);
       return;
     }
 
@@ -386,20 +510,24 @@ async function loadReviews(placeId, embeddedReviews, token) {
     const userMap = {};
     await Promise.all(
       uniqueIds.map(async (uid) => {
-        const user = await apiGetUser(uid, token).catch(() => null);
+        const user = await apiGetUser(uid).catch(() => null);
         if (user) userMap[uid] = `${user.first_name} ${user.last_name}`;
       }),
     );
 
-    list.innerHTML = reviews.map((r) => renderReview(r, userMap)).join("");
-    bindReviewResponseForms();
+    list.replaceChildren(
+      ...reviews.map((review) => createReviewElement(review, userMap)),
+    );
   } catch (err) {
     console.error("[HBnB] Failed to load reviews:", err.message);
-    list.innerHTML = `<li style="color:var(--text-muted);font-size:0.875rem;">Could not load reviews: ${escapeHtml(err.message)}</li>`;
+    const item = document.createElement("li");
+    item.className = "helper-text-muted";
+    item.textContent = `Could not load reviews: ${err.message}`;
+    list.replaceChildren(item);
   }
 }
 
-function renderReview(review, userMap = {}) {
+function createReviewElement(review, userMap = {}) {
   const author =
     userMap[review.user_id] ||
     (review.user_id ? `User ${review.user_id.substring(0, 8)}…` : "Anonymous");
@@ -407,55 +535,86 @@ function renderReview(review, userMap = {}) {
     "★".repeat(Math.max(0, Math.min(5, review.rating || 0))) +
     "☆".repeat(Math.max(0, 5 - (review.rating || 0)));
   const text = review.text || review.comment || "";
-  const ownerResponse = review.owner_response
-    ? `
-      <div class="review-response">
-        <p class="review-response-label">Host response</p>
-        <p class="review-response-text">${escapeHtml(review.owner_response)}</p>
-      </div>
-    `
-    : "";
-  const responseForm = currentIsOwner
-    ? `
-      <form class="review-response-form" data-review-id="${escapeHtml(review.id)}">
-        <textarea class="review-response-input" rows="3" placeholder="${review.owner_response ? "Update your response..." : "Write a reply to this review..."}"></textarea>
-        <button type="submit" class="login-button">${review.owner_response ? "Update response" : "Save response"}</button>
-      </form>
-    `
-    : "";
+  const item = document.createElement("li");
+  item.className = "review-card";
 
-  return `
-    <li class="review-card">
-      <div class="review-header">
-        <span class="review-author">${escapeHtml(author)}</span>
-        <span class="review-stars">${stars}</span>
-      </div>
-      <p class="review-text">${escapeHtml(text)}</p>
-      ${ownerResponse}
-      ${responseForm}
-    </li>`;
-}
+  const header = document.createElement("div");
+  header.className = "review-header";
 
-function bindReviewResponseForms() {
-  if (!currentIsOwner) return;
+  const authorEl = document.createElement("span");
+  authorEl.className = "review-author";
+  authorEl.textContent = author;
 
-  document.querySelectorAll(".review-response-form").forEach((form) => {
+  const starsEl = document.createElement("span");
+  starsEl.className = "review-stars";
+  starsEl.textContent = stars;
+
+  header.appendChild(authorEl);
+  header.appendChild(starsEl);
+
+  const textEl = document.createElement("p");
+  textEl.className = "review-text";
+  textEl.textContent = text;
+
+  item.appendChild(header);
+  item.appendChild(textEl);
+
+  if (review.owner_response) {
+    const response = document.createElement("div");
+    response.className = "review-response";
+
+    const responseLabel = document.createElement("p");
+    responseLabel.className = "review-response-label";
+    responseLabel.textContent = "Host response";
+
+    const responseText = document.createElement("p");
+    responseText.className = "review-response-text";
+    responseText.textContent = review.owner_response;
+
+    response.appendChild(responseLabel);
+    response.appendChild(responseText);
+    item.appendChild(response);
+  }
+
+  if (currentIsOwner) {
+    const form = document.createElement("form");
+    form.className = "review-response-form";
+    form.dataset.reviewId = review.id;
+
+    const input = document.createElement("textarea");
+    input.className = "review-response-input";
+    input.rows = 3;
+    input.placeholder = review.owner_response
+      ? "Update your response..."
+      : "Write a reply to this review...";
+
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.className = "login-button";
+    button.textContent = review.owner_response
+      ? "Update response"
+      : "Save response";
+
+    form.appendChild(input);
+    form.appendChild(button);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const reviewId = form.dataset.reviewId;
-      const input = form.querySelector(".review-response-input");
       const responseText = (input?.value || "").trim();
       if (!responseText) return;
 
       try {
         await apiRespondToReview(reviewId, responseText);
         if (input) input.value = "";
-        await loadReviews(currentPlaceId, [], getCookie("token"));
+        await loadReviews(currentPlaceId, []);
       } catch (err) {
         console.error("[HBnB] Failed to save review response:", err.message);
       }
     });
-  });
+    item.appendChild(form);
+  }
+
+  return item;
 }
 
 // ──────────────────────────────────────────────────
@@ -514,8 +673,7 @@ async function handleReviewSubmit(e) {
     if (input) input.value = 0;
 
     // Reload reviews
-    const token = getCookie("token");
-    await loadReviews(currentPlaceId, [], token);
+    await loadReviews(currentPlaceId, []);
   } catch (err) {
     console.error("[HBnB] Review submission failed:", err.message);
     showReviewAlert(err.message || "Failed to submit review.", "error");
@@ -531,13 +689,24 @@ async function handleReviewSubmit(e) {
 function showPlaceError(message) {
   const section = document.getElementById("place-details");
   if (section) {
-    section.innerHTML = `
-      <div class="empty-state fade-in">
-        <div class="empty-state-icon">⚠️</div>
-        <h3>Something went wrong</h3>
-        <p>${escapeHtml(message)}</p>
-        <a href="index.html" class="back-link" style="margin-top:16px;">Back to places</a>
-      </div>`;
+    const state = document.createElement("div");
+    state.className = "empty-state fade-in";
+    const icon = document.createElement("div");
+    icon.className = "empty-state-icon";
+    icon.textContent = "⚠️";
+    const title = document.createElement("h3");
+    title.textContent = "Something went wrong";
+    const text = document.createElement("p");
+    text.textContent = message;
+    const link = document.createElement("a");
+    link.href = "index.html";
+    link.className = "back-link empty-state-back-link";
+    link.textContent = "Back to places";
+    state.appendChild(icon);
+    state.appendChild(title);
+    state.appendChild(text);
+    state.appendChild(link);
+    section.replaceChildren(state);
   }
 }
 
@@ -562,7 +731,7 @@ function setSubmitLoading(loading) {
   const spinner = document.getElementById("submit-spinner");
   if (btn) btn.disabled = loading;
   if (btnText) btnText.textContent = loading ? "Submitting…" : "Submit";
-  if (spinner) spinner.style.display = loading ? "inline-block" : "none";
+  if (spinner) spinner.hidden = !loading;
 }
 
 // ──────────────────────────────────────────────────

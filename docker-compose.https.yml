@@ -1,0 +1,27 @@
+services:
+  backend:
+    environment:
+      FLASK_CONFIG: ${FLASK_CONFIG_TLS:-config.ProductionConfig}
+      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE_TLS:-1}
+      CORS_ORIGINS: ${CORS_ORIGINS_TLS:-https://localhost:8443}
+
+  api-gateway-https:
+    image: nginx:1.27-alpine
+    container_name: hbnb-api-gateway-https
+    depends_on:
+      - backend
+    ports:
+      - "5443:443"
+    volumes:
+      - ./part4/deploy/nginx/api-gateway-https.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./part4/deploy/certs:/etc/nginx/certs:ro
+
+  frontend-https:
+    image: nginx:1.27-alpine
+    container_name: hbnb-frontend-https
+    ports:
+      - "8443:443"
+    volumes:
+      - ./part4/frontend:/usr/share/nginx/html:ro
+      - ./part4/deploy/nginx/frontend-https.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./part4/deploy/certs:/etc/nginx/certs:ro

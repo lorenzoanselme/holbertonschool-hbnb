@@ -1,11 +1,15 @@
 import os
 import uuid
+from collections import defaultdict, deque
+from datetime import datetime, timedelta
 
 from flask import request
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 from flask_restx import Namespace, Resource, fields
 from werkzeug.utils import secure_filename
 
+from app.image_uploads import IMAGE_TYPE_EXTENSIONS, process_uploaded_image
+from app.security import audit_event
 from app.services import facade
 
 api = Namespace("places", description="Place operations")
@@ -13,6 +17,38 @@ UPLOAD_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../../frontend/assets/uploads")
 )
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+UPLOAD_RATE_LIMITS = {"photo_upload": {"max_attempts": 18, "window_seconds": 600}}
+UPLOAD_ATTEMPTS = defaultdict(deque)
+
+
+def get_client_identifier():
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def enforce_upload_rate_limit(scope, identifier):
+    config = UPLOAD_RATE_LIMITS[scope]
+    now = datetime.utcnow()
+    window = timedelta(seconds=config["window_seconds"])
+    attempts = UPLOAD_ATTEMPTS[(scope, identifier)]
+
+    while attempts and now - attempts[0] > window:
+        attempts.popleft()
+
+    if len(attempts) >= config["max_attempts"]:
+        retry_after = int(
+            max(
+                1,
+                config["window_seconds"] - (now - attempts[0]).total_seconds(),
+            )
+        )
+        return retry_after
+
+    attempts.append(now)
+    return None
+
 
 place_model = api.model(
     "Place",
@@ -157,13 +193,43 @@ class PlacePhotoUpload(Resource):
         extension = os.path.splitext(photo.filename)[1].lower()
         if extension not in ALLOWED_EXTENSIONS:
             return {"error": "Unsupported image format"}, 400
+        try:
+            detected_type, image_bytes = process_uploaded_image(photo)
+        except ValueError as e:
+            audit_event(
+                "place.photo_upload.invalid",
+                outcome="denied",
+                reason=str(e),
+            )
+            return {"error": str(e)}, 400
 
         current_user_id = get_jwt_identity()
+        retry_after = enforce_upload_rate_limit(
+            "photo_upload", f"{get_client_identifier()}:{current_user_id}"
+        )
+        if retry_after:
+            audit_event(
+                "place.photo_upload.rate_limited",
+                outcome="blocked",
+                user_id=current_user_id,
+            )
+            return {
+                "error": "Too many uploads. Try again later.",
+                "retry_after": retry_after,
+            }, 429
         os.makedirs(UPLOAD_DIR, exist_ok=True)
+        canonical_extension = IMAGE_TYPE_EXTENSIONS[detected_type]
         filename = secure_filename(
-            f"place-{current_user_id}-{uuid.uuid4().hex}{extension}"
+            f"place-{current_user_id}-{uuid.uuid4().hex}{canonical_extension}"
         )
         filepath = os.path.join(UPLOAD_DIR, filename)
-        photo.save(filepath)
+        with open(filepath, "wb") as output_file:
+            output_file.write(image_bytes)
 
-        return {"image_url": f"assets/uploads/{filename}"}, 200
+        image_url = f"assets/uploads/{filename}"
+        audit_event(
+            "place.photo_upload.succeeded",
+            user_id=current_user_id,
+            image_url=image_url,
+        )
+        return {"image_url": image_url}, 200

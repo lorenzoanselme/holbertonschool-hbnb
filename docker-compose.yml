@@ -1,27 +1,60 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: hbnb-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hbnb}
+      POSTGRES_USER: ${POSTGRES_USER:-hbnb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment or .env file}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./part4
       dockerfile: Dockerfile
     container_name: hbnb-backend
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      SECRET_KEY: dev_secret_key
-      JWT_SECRET_KEY: dev_jwt_secret_key
+      FLASK_CONFIG: ${FLASK_CONFIG:-config.DevelopmentConfig}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in your environment or .env file}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in your environment or .env file}
+      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-0}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI:-postgresql+psycopg://hbnb:${POSTGRES_PASSWORD}@db:5432/hbnb}
       PYTHONUNBUFFERED: "1"
-    ports:
-      - "5001:5000"
     volumes:
       - ./part4/instance:/app/instance
       - ./part4/frontend/assets/uploads:/app/frontend/assets/uploads
+    expose:
+      - "5000"
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    container_name: hbnb-api-gateway
+    depends_on:
+      - backend
+    ports:
+      - "5001:80"
+    volumes:
+      - ./part4/deploy/nginx/api-gateway.conf:/etc/nginx/conf.d/default.conf:ro
 
   frontend:
     image: python:3.11-slim
     container_name: hbnb-frontend
     working_dir: /srv
     command: python -m http.server 8080 --directory /srv/frontend
-    depends_on:
-      - backend
     ports:
       - "8080:8080"
     volumes:
       - ./part4/frontend:/srv/frontend:ro
+
+volumes:
+  postgres_data:
