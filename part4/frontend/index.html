@@ -5,11 +5,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Places — HBnB</title>
         <link rel="icon" type="image/png" href="assets/logo.png" />
-        <link rel="stylesheet" href="css/styles.css" />
+        <link rel="stylesheet" href="css/styles.css?v=20260328r" />
         <script>
             if (localStorage.getItem("hbnb-theme") === "dark")
                 document.documentElement.dataset.theme = "dark";
         </script>
+        <script src="js/runtime-config.js?v=20260328d"></script>
     </head>
     <body>
         <div class="page-wrapper">
@@ -74,18 +75,69 @@
             <main>
                 <div class="page-header">
                     <h1>Available Places</h1>
-                    <p>Browse and book unique stays around the world.</p>
+                    <p id="places-subtitle">
+                        Browse and book unique stays around the world.
+                    </p>
                 </div>
 
-                <div class="filter-bar">
-                    <label for="price-filter">Max price per night</label>
-                    <select id="price-filter">
-                        <option value="all">All</option>
-                        <option value="50">$50</option>
-                        <option value="150">$150</option>
-                        <option value="300">$300</option>
-                    </select>
-                </div>
+                <section class="places-explorer">
+                    <div class="filter-bar places-controls">
+                        <div class="filter-group">
+                            <label for="price-filter"
+                                >Max price per night</label
+                            >
+                            <select id="price-filter">
+                                <option value="all">All</option>
+                                <option value="50">$50</option>
+                                <option value="150">$150</option>
+                                <option value="300">$300</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group filter-group-location">
+                            <label>Your location</label>
+                            <button
+                                type="button"
+                                id="locate-user-btn"
+                                class="login-button"
+                            >
+                                Use my location
+                            </button>
+                            <p id="location-status" class="places-meta-text">
+                                Distance filter is off until you share your
+                                location.
+                            </p>
+                        </div>
+
+                        <div class="filter-group filter-group-distance">
+                            <label for="distance-filter">Distance radius</label>
+                            <input
+                                type="range"
+                                id="distance-filter"
+                                min="5"
+                                max="500"
+                                step="5"
+                                value="75"
+                                disabled
+                            />
+                            <p class="places-meta-text">
+                                Showing places within
+                                <strong id="distance-value">75 km</strong>
+                            </p>
+                        </div>
+
+                        <label class="places-checkbox">
+                            <input type="checkbox" id="nearby-only" disabled />
+                            <span>Only show nearby stays</span>
+                        </label>
+                    </div>
+
+                    <div class="places-results-bar">
+                        <p id="places-results-summary" class="places-meta-text">
+                            Loading places…
+                        </p>
+                    </div>
+                </section>
 
                 <div id="places-list">
                     <div class="spinner-wrapper">
@@ -103,6 +155,6 @@
             import { initTheme } from "./js/theme.js";
             initTheme();
         </script>
-        <script type="module" src="js/places.js"></script>
+        <script type="module" src="js/places.js?v=20260328d"></script>
     </body>
 </html>

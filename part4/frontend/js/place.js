@@ -6,6 +6,7 @@
 
 import { getCurrentUserId, updateNavbar, logout } from "./auth.js";
 import { getCookie } from "./api.js";
+import { reverseGeocode } from "./geo.js";
 import {
   apiGetPlace,
   apiGetPlaceReviews,
@@ -21,6 +22,7 @@ import {
 let currentPlaceId = null;
 let selectedRating = 0;
 let currentIsOwner = false;
+let currentPlaceMap = null;
 
 // ──────────────────────────────────────────────────
 // Init
@@ -74,6 +76,7 @@ async function fetchPlaceDetails(token, placeId) {
 
     const owner = await apiGetUser(place.owner_id, token).catch(() => null);
     displayPlaceDetails(place, owner);
+    hydratePlaceLocation(place);
 
     await loadReviews(placeId, place.reviews, token);
   } catch (err) {
@@ -122,6 +125,8 @@ function displayPlaceDetails(place, owner) {
 
   const title = place.title || place.name || "Unnamed Place";
   const desc = place.description || "No description available.";
+  const imageUrls = getPlaceImageUrls(place);
+  const image = renderPlaceGallery(imageUrls, title);
   const price =
     place.price != null ? `$${parseFloat(place.price).toFixed(0)}` : "N/A";
   const lat =
@@ -150,10 +155,18 @@ function displayPlaceDetails(place, owner) {
       <div class="place-detail-main">
 
         <div class="place-info">
+          ${image}
           <h1 class="detail-title">${escapeHtml(title)}</h1>
           <div class="detail-meta">
             <span class="badge badge-price">${escapeHtml(price)} / night</span>
-            ${lat && lon ? `<span class="coordinates">${lat}, ${lon}</span>` : ""}
+            ${
+              lat && lon
+                ? `
+                  <span class="coordinates" id="place-city-label">Looking up location…</span>
+                  <span class="coordinates">${lat}, ${lon}</span>
+                `
+                : ""
+            }
           </div>
           <div class="place-owner-card">
             ${ownerLink ? `<a href="${ownerLink}" class="place-owner-link">` : '<div class="place-owner-link">'}
@@ -166,6 +179,21 @@ function displayPlaceDetails(place, owner) {
             ${ownerLink ? "</a>" : "</div>"}
           </div>
           <p class="detail-description">${escapeHtml(desc)}</p>
+          ${
+            lat && lon
+              ? `
+                <div class="place-map-card">
+                  <div class="place-map-header">
+                    <div>
+                      <h2 class="section-title">Location</h2>
+                      <p class="place-map-copy">Explore where this stay is located on the map.</p>
+                    </div>
+                  </div>
+                  <div id="place-map" class="place-map"></div>
+                </div>
+              `
+              : ""
+          }
           <div style="margin-top:20px;">
             <h2 class="section-title">Amenities</h2>
             ${renderAmenities(amenities)}
@@ -184,6 +212,123 @@ function displayPlaceDetails(place, owner) {
 
     </div>
   `;
+  section.dataset.imageUrls = JSON.stringify(imageUrls);
+
+  bindPlaceGallery(section);
+}
+
+async function hydratePlaceLocation(place) {
+  if (place.latitude == null || place.longitude == null) return;
+
+  initPlaceMap(place.latitude, place.longitude, place.title || "Place");
+
+  const label = document.getElementById("place-city-label");
+  if (!label) return;
+
+  try {
+    const location = await reverseGeocode(
+      Number(place.latitude),
+      Number(place.longitude),
+    );
+    label.textContent = location.label;
+  } catch {
+    label.textContent = "Location unavailable";
+  }
+}
+
+function initPlaceMap(latitude, longitude, title) {
+  const mapElement = document.getElementById("place-map");
+  if (!mapElement || typeof window.L === "undefined") return;
+
+  if (currentPlaceMap) {
+    currentPlaceMap.remove();
+    currentPlaceMap = null;
+  }
+
+  currentPlaceMap = window.L.map(mapElement, {
+    scrollWheelZoom: false,
+  }).setView([latitude, longitude], 11);
+
+  window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors",
+    maxZoom: 19,
+  }).addTo(currentPlaceMap);
+
+  window.L.marker([latitude, longitude])
+    .addTo(currentPlaceMap)
+    .bindPopup(escapeHtml(title || "Place"))
+    .openPopup();
+
+  setTimeout(() => currentPlaceMap?.invalidateSize(), 120);
+}
+
+function renderPlaceGallery(imageUrls, title) {
+  const mainImage = resolvePlaceImageUrl(imageUrls[0]);
+
+  return `
+    <div class="place-gallery">
+      <div class="place-hero-image-wrapper">
+        ${
+          imageUrls.length > 1
+            ? `
+          <button type="button" class="place-gallery-nav place-gallery-nav-prev" aria-label="Previous photo">
+            ‹
+          </button>
+          <button type="button" class="place-gallery-nav place-gallery-nav-next" aria-label="Next photo">
+            ›
+          </button>
+        `
+            : ""
+        }
+        <img src="${escapeHtml(mainImage)}" alt="${escapeHtml(title)}" class="place-hero-image" id="place-main-image">
+      </div>
+      ${
+        imageUrls.length > 1
+          ? `
+            <div class="place-gallery-toolbar">
+              <p class="place-gallery-caption">Browse the photos of this stay</p>
+              <div class="place-gallery-status">
+                <span id="place-gallery-index">1</span>/<span>${imageUrls.length}</span>
+              </div>
+            </div>
+          `
+          : ""
+      }
+    </div>
+  `;
+}
+
+function bindPlaceGallery(section) {
+  const mainImage = section.querySelector("#place-main-image");
+  if (!mainImage) return;
+  let parsedImageUrls = [];
+  try {
+    parsedImageUrls = JSON.parse(section.dataset.imageUrls || "[]");
+  } catch {
+    parsedImageUrls = [];
+  }
+  const imageUrls = getPlaceImageUrls({ image_urls: parsedImageUrls });
+  if (imageUrls.length <= 1) return;
+
+  const indexEl = section.querySelector("#place-gallery-index");
+  const prevButton = section.querySelector(".place-gallery-nav-prev");
+  const nextButton = section.querySelector(".place-gallery-nav-next");
+  let currentIndex = 0;
+
+  const updateImage = () => {
+    mainImage.src = resolvePlaceImageUrl(imageUrls[currentIndex]);
+    if (indexEl) indexEl.textContent = String(currentIndex + 1);
+  };
+
+  prevButton?.addEventListener("click", () => {
+    currentIndex = (currentIndex - 1 + imageUrls.length) % imageUrls.length;
+    updateImage();
+  });
+
+  nextButton?.addEventListener("click", () => {
+    currentIndex = (currentIndex + 1) % imageUrls.length;
+    updateImage();
+  });
 }
 
 function renderAmenities(amenities) {
@@ -431,6 +576,24 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function resolvePlaceImageUrl(imageUrl) {
+  const fallback = `${window.location.origin}/assets/demo-places/paris-studio.jpg`;
+
+  if (!imageUrl) return fallback;
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (imageUrl.startsWith("assets/")) {
+    return `${window.location.origin}/${imageUrl}`;
+  }
+  return imageUrl;
+}
+
+function getPlaceImageUrls(place) {
+  const values = Array.isArray(place?.image_urls) ? place.image_urls : [];
+  if (values.length > 0) return values;
+  if (place?.image_url) return [place.image_url];
+  return ["assets/demo-places/paris-studio.jpg"];
 }
 
 function getInitials(firstName, lastName) {

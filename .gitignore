@@ -42,3 +42,7 @@ dist/
 # Temporary files
 *.swp
 *.swo
+
+# Project runtime data
+part4/instance/
+part4/frontend/assets/uploads/

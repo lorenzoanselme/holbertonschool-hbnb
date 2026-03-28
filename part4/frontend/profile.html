@@ -5,11 +5,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Profile — HBnB</title>
         <link rel="icon" type="image/png" href="assets/logo.png" />
-        <link rel="stylesheet" href="css/styles.css" />
+        <link rel="stylesheet" href="css/styles.css?v=20260328r" />
         <script>
             if (localStorage.getItem("hbnb-theme") === "dark")
                 document.documentElement.dataset.theme = "dark";
         </script>
+        <script src="js/runtime-config.js?v=20260328j"></script>
     </head>
     <body>
         <div class="page-wrapper">
@@ -73,147 +74,180 @@
 
             <main>
                 <section class="profile-layout">
-                    <div class="detail-card profile-hero fade-in">
-                        <div class="profile-hero-main">
-                            <div
-                                id="profile-avatar"
-                                class="profile-avatar"
-                                aria-hidden="true"
-                            >
-                                ?
-                            </div>
-                            <input
-                                type="file"
-                                id="profile-photo-input"
-                                accept="image/*"
-                                hidden
-                            />
-                            <div class="profile-hero-copy">
-                                <p class="section-title profile-title-kicker">
-                                    Host Profile
-                                </p>
-                                <h1
-                                    id="profile-display-name"
-                                    class="detail-title profile-display-name"
-                                >
-                                    Loading…
-                                </h1>
-                                <p id="profile-public-bio" class="profile-bio">
-                                    Loading profile…
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="profile-form-card" class="detail-card fade-in">
-                        <div class="profile-section-header">
-                            <div>
-                                <p class="section-title profile-title-kicker">
-                                    Edit Profile
-                                </p>
-                                <h2 class="profile-section-title">
-                                    Manage your public profile
-                                </h2>
-                            </div>
-                        </div>
-
-                        <div
-                            id="profile-alert"
-                            class="alert"
-                            role="alert"
-                        ></div>
-
-                        <form id="profile-form" class="form" novalidate>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="first_name">First Name</label>
-                                    <input
-                                        type="text"
-                                        id="first_name"
-                                        name="first_name"
-                                        required
-                                    />
-                                </div>
-                                <div class="form-group">
-                                    <label for="last_name">Last Name</label>
-                                    <input
-                                        type="text"
-                                        id="last_name"
-                                        name="last_name"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="email">Email</label>
-                                <input
-                                    type="email"
-                                    id="email"
-                                    name="email"
-                                    disabled
-                                />
-                            </div>
-
-                            <input
-                                type="hidden"
-                                id="profile_picture_url"
-                                name="profile_picture_url"
-                            />
-                            <p class="profile-photo-hint">
-                                Click the photo to choose an image from your
-                                device.
-                            </p>
-
-                            <div class="form-group">
-                                <label for="bio">Profile Description</label>
-                                <textarea
-                                    id="bio"
-                                    name="bio"
-                                    rows="5"
-                                    placeholder="Tell guests who you are, what you host, and what they can expect."
-                                ></textarea>
-                            </div>
-
-                            <button
-                                type="submit"
-                                id="profile-btn"
-                                class="btn btn-primary btn-lg btn-block"
-                            >
-                                <span id="profile-btn-text">Save Profile</span>
-                                <span
-                                    id="profile-spinner"
-                                    class="spinner"
-                                    style="
-                                        display: none;
-                                        width: 18px;
-                                        height: 18px;
-                                        border-width: 2px;
-                                    "
+                    <div class="profile-main-column">
+                        <div class="detail-card profile-hero fade-in">
+                            <div class="profile-hero-main">
+                                <div
+                                    id="profile-avatar"
+                                    class="profile-avatar"
                                     aria-hidden="true"
-                                ></span>
-                            </button>
-                        </form>
-                    </div>
-                </section>
+                                >
+                                    ?
+                                </div>
+                                <input
+                                    type="file"
+                                    id="profile-photo-input"
+                                    accept="image/*"
+                                    hidden
+                                />
+                                <div class="profile-hero-copy">
+                                    <p
+                                        class="section-title profile-title-kicker"
+                                    >
+                                        Host Profile
+                                    </p>
+                                    <h1
+                                        id="profile-display-name"
+                                        class="detail-title profile-display-name"
+                                    >
+                                        Loading…
+                                    </h1>
+                                    <p
+                                        id="profile-public-bio"
+                                        class="profile-bio"
+                                    >
+                                        Loading profile…
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
 
-                <section
-                    id="notifications-section"
-                    class="detail-card fade-in"
-                    style="display: none"
-                >
-                    <div class="profile-section-header">
-                        <div>
-                            <p class="section-title profile-title-kicker">
-                                Notifications
-                            </p>
-                            <h2 class="profile-section-title">
-                                Recent activity on your places
-                            </h2>
+                        <section
+                            id="notifications-section"
+                            class="detail-card fade-in profile-inline-panel"
+                            style="display: none"
+                        >
+                            <div class="profile-section-header">
+                                <div>
+                                    <p
+                                        class="section-title profile-title-kicker"
+                                    >
+                                        Notifications
+                                    </p>
+                                    <h2 class="profile-section-title">
+                                        Recent activity on your places
+                                    </h2>
+                                </div>
+                                <div class="notification-panel-actions">
+                                    <button
+                                        type="button"
+                                        id="notifications-read-all"
+                                        class="login-button"
+                                    >
+                                        Mark all as read
+                                    </button>
+                                    <button
+                                        type="button"
+                                        id="notifications-delete-all"
+                                        class="login-button"
+                                    >
+                                        Delete all
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="notifications-list"></div>
+                        </section>
+                    </div>
+
+                    <div class="profile-side-column">
+                        <div id="profile-form-card" class="detail-card fade-in">
+                            <div class="profile-section-header">
+                                <div>
+                                    <p
+                                        class="section-title profile-title-kicker"
+                                    >
+                                        Edit Profile
+                                    </p>
+                                    <h2 class="profile-section-title">
+                                        Manage your public profile
+                                    </h2>
+                                </div>
+                            </div>
+
+                            <div
+                                id="profile-alert"
+                                class="alert"
+                                role="alert"
+                            ></div>
+
+                            <form id="profile-form" class="form" novalidate>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="first_name"
+                                            >First Name</label
+                                        >
+                                        <input
+                                            type="text"
+                                            id="first_name"
+                                            name="first_name"
+                                            required
+                                        />
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="last_name">Last Name</label>
+                                        <input
+                                            type="text"
+                                            id="last_name"
+                                            name="last_name"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="email">Email</label>
+                                    <input
+                                        type="email"
+                                        id="email"
+                                        name="email"
+                                        disabled
+                                    />
+                                </div>
+
+                                <input
+                                    type="hidden"
+                                    id="profile_picture_url"
+                                    name="profile_picture_url"
+                                />
+                                <p class="profile-photo-hint">
+                                    Click the photo to choose an image from your
+                                    device.
+                                </p>
+
+                                <div class="form-group">
+                                    <label for="bio">Profile Description</label>
+                                    <textarea
+                                        id="bio"
+                                        name="bio"
+                                        rows="5"
+                                        placeholder="Tell guests who you are, what you host, and what they can expect."
+                                    ></textarea>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    id="profile-btn"
+                                    class="btn btn-primary btn-lg btn-block"
+                                >
+                                    <span id="profile-btn-text"
+                                        >Save Profile</span
+                                    >
+                                    <span
+                                        id="profile-spinner"
+                                        class="spinner"
+                                        style="
+                                            display: none;
+                                            width: 18px;
+                                            height: 18px;
+                                            border-width: 2px;
+                                        "
+                                        aria-hidden="true"
+                                    ></span>
+                                </button>
+                            </form>
                         </div>
                     </div>
-
-                    <div id="notifications-list"></div>
                 </section>
 
                 <section
@@ -294,6 +328,60 @@
                                 id="place_description"
                                 rows="4"
                             ></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Place photo</label>
+                            <input
+                                type="hidden"
+                                id="place_image_url"
+                                name="place_image_url"
+                            />
+                            <input
+                                type="hidden"
+                                id="place_image_urls"
+                                name="place_image_urls"
+                            />
+                            <input
+                                type="file"
+                                id="place-photo-input"
+                                accept="image/*"
+                                multiple
+                                hidden
+                            />
+                            <button
+                                type="button"
+                                id="place-photo-trigger"
+                                class="place-photo-picker"
+                            >
+                                <span class="place-photo-preview-wrapper">
+                                    <img
+                                        id="place-photo-preview"
+                                        class="place-photo-preview"
+                                        alt="Place preview"
+                                        hidden
+                                    />
+                                    <span
+                                        id="place-photo-placeholder"
+                                        class="place-photo-placeholder"
+                                    >
+                                        Add a photo
+                                    </span>
+                                </span>
+                                <span class="place-photo-picker-copy">
+                                    <strong id="place-photo-label"
+                                        >Choose photos from your device</strong
+                                    >
+                                    <span class="profile-photo-hint"
+                                        >Add several real photos to make the
+                                        listing feel credible.</span
+                                    >
+                                </span>
+                            </button>
+                            <div
+                                id="place-photo-gallery"
+                                class="place-photo-gallery"
+                            ></div>
                         </div>
 
                         <div class="form-row">
@@ -384,6 +472,43 @@
                 </div>
             </div>
 
+            <div id="notifications-delete-modal" class="modal-overlay" hidden>
+                <div class="modal-card glass confirm-modal-card">
+                    <div class="profile-section-header profile-modal-header">
+                        <div>
+                            <p class="section-title profile-title-kicker">
+                                Notifications
+                            </p>
+                            <h2 class="profile-section-title">
+                                Delete all notifications?
+                            </h2>
+                        </div>
+                    </div>
+
+                    <p class="confirm-modal-copy">
+                        This action will permanently remove all your
+                        notifications.
+                    </p>
+
+                    <div class="confirm-modal-actions">
+                        <button
+                            type="button"
+                            id="notifications-delete-cancel"
+                            class="login-button"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            id="notifications-delete-confirm"
+                            class="login-button profile-delete-btn"
+                        >
+                            Delete all
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <footer>
                 <p>&copy; 2026 HBnB Evolution. All rights reserved.</p>
             </footer>
@@ -393,6 +518,6 @@
             import { initTheme } from "./js/theme.js";
             initTheme();
         </script>
-        <script type="module" src="js/profile.js"></script>
+        <script type="module" src="js/profile.js?v=20260328j"></script>
     </body>
 </html>

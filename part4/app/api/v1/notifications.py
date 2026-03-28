@@ -1,6 +1,7 @@
-from app.services import facade
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from flask_restx import Namespace, Resource
+
+from app.services import facade
 
 api = Namespace("notifications", description="Notification operations")
 
@@ -23,6 +24,24 @@ class NotificationRead(Resource):
         if not notification:
             return {"error": "Notification not found"}, 404
         return notification.to_dict(), 200
+
+
+@api.route("/bulk/read")
+class NotificationReadAll(Resource):
+    @jwt_required()
+    def put(self):
+        user_id = get_jwt_identity()
+        count = facade.mark_all_notifications_as_read(user_id)
+        return {"message": "Notifications marked as read", "count": count}, 200
+
+
+@api.route("/bulk/delete")
+class NotificationDeleteAll(Resource):
+    @jwt_required()
+    def delete(self):
+        user_id = get_jwt_identity()
+        count = facade.delete_all_notifications(user_id)
+        return {"message": "Notifications deleted", "count": count}, 200
 
 
 @api.route("/<string:notification_id>")

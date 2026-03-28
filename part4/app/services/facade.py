@@ -3,6 +3,7 @@ from typing import cast
 
 from sqlalchemy.exc import IntegrityError
 
+from app import db
 from app.models.amenity import Amenity
 from app.models.notification import Notification
 from app.models.place import Place
@@ -87,6 +88,8 @@ class HBnBFacade:
         place = Place(
             title=place_data["title"],
             description=place_data.get("description", ""),
+            image_url=place_data.get("image_url", ""),
+            image_urls=place_data.get("image_urls", []),
             price=place_data["price"],
             latitude=place_data["latitude"],
             longitude=place_data["longitude"],
@@ -112,6 +115,17 @@ class HBnBFacade:
             return None
 
         updated_data = dict(place_data)
+
+        if "image_urls" in updated_data:
+            place.set_image_urls(updated_data.pop("image_urls"))
+            updated_data["image_url"] = place.image_url
+            updated_data["image_urls_json"] = place.image_urls_json
+        elif "image_url" in updated_data:
+            place.set_image_urls(
+                [updated_data["image_url"]] if updated_data["image_url"] else []
+            )
+            updated_data["image_url"] = place.image_url
+            updated_data["image_urls_json"] = place.image_urls_json
 
         if "owner_id" in updated_data:
             owner = self.get_user(updated_data["owner_id"])
@@ -228,6 +242,25 @@ class HBnBFacade:
         if not notification or notification.user_id != user_id:
             return None
         return self.notification_repo.update(notification_id, {"is_read": True})
+
+    def mark_all_notifications_as_read(self, user_id):
+        notifications = Notification.query.filter_by(
+            user_id=user_id, is_read=False
+        ).all()
+        for notification in notifications:
+            notification.is_read = True
+        if notifications:
+            db.session.commit()
+        return len(notifications)
+
+    def delete_all_notifications(self, user_id):
+        notifications = Notification.query.filter_by(user_id=user_id).all()
+        count = len(notifications)
+        for notification in notifications:
+            db.session.delete(notification)
+        if notifications:
+            db.session.commit()
+        return count
 
     def delete_notification(self, notification_id, user_id):
         notification = self.notification_repo.get(notification_id)

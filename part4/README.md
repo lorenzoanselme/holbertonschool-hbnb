@@ -1,148 +1,57 @@
-# HBnB - Part 2: Business Logic + API REST
+# HBnB - Part 4
 
-## Vue d'ensemble
+## Overview
 
-La partie 2 du projet **HBnB** implémente:
+`part4` is the current working application.
 
-- les entités métier principales (`User`, `Place`, `Review`, `Amenity`)
-- les règles de validation via setters `@property`
-- une couche service avec pattern **Facade**
-- une API REST en **Flask-RESTX** (avec Swagger)
-- un repository en mémoire (`InMemoryRepository`) pour le stockage temporaire
+It includes:
 
-Cette version est orientée développement/tests: les données sont perdues au redémarrage.
+- a Flask REST API with Swagger
+- SQLite persistence through SQLAlchemy
+- JWT authentication
+- role-aware authorization for admin and regular users
+- a static frontend served separately from the API
+- profile pages with avatars and bios
+- place creation and management
+- reviews, host responses, and notifications
 
----
-
-## Stack technique
+## Stack
 
 - Python 3
 - Flask
 - Flask-RESTX
-- Tests: `unittest`
+- Flask-SQLAlchemy
+- Flask-JWT-Extended
+- Flask-Bcrypt
+- Flask-CORS
+- SQLite
+- Vanilla HTML / CSS / JavaScript
+- Docker / Docker Compose
 
----
-
-## Structure du projet
+## Project Structure
 
 ```text
-part2/
+part4/
 ├── app/
-│   ├── __init__.py
-│   ├── api/
-│   │   └── v1/
-│   │       ├── users.py
-│   │       ├── amenities.py
-│   │       ├── places.py
-│   │       └── reviews.py
+│   ├── api/v1/
 │   ├── models/
-│   │   ├── base.py
-│   │   ├── user.py
-│   │   ├── place.py
-│   │   ├── review.py
-│   │   └── amenity.py
 │   ├── persistence/
-│   │   └── repository.py
 │   └── services/
-│       └── facade.py
-├── test/
-│   ├── test_user.py
-│   ├── test_amenity.py
-│   ├── test_place.py
-│   └── test_review.py
+├── frontend/
+│   ├── assets/
+│   ├── css/
+│   ├── js/
+│   └── *.html
 ├── config.py
-├── run.py
+├── Dockerfile
 ├── requirements.txt
-└── TEST_REPORT.md
+├── run.py
+└── start.sh
 ```
 
----
+## Local Run
 
-## Modèle métier
-
-### `BaseModel`
-
-Toutes les entités héritent de `BaseModel`:
-
-- `id` (UUID en string)
-- `created_at`
-- `updated_at`
-- `save()` met à jour `updated_at`
-- `update(data)` met à jour les attributs existants (et déclenche les validations)
-
-### Règles de validation
-
-- **User**
-    - `first_name` et `last_name`: obligatoires, max 50 caractères
-    - `email`: obligatoire, format de base valide
-    - `is_admin`: booléen
-- **Place**
-    - `title`: obligatoire, max 100 caractères
-    - `description`: string (ou vide)
-    - `price`: nombre strictement positif
-    - `latitude`: entre -90 et 90
-    - `longitude`: entre -180 et 180
-    - `owner`: instance de `User`
-- **Review**
-    - `text`: obligatoire
-    - `rating`: entier entre 1 et 5
-    - `place`: instance de `Place`
-    - `user`: instance de `User`
-- **Amenity**
-    - `name`: obligatoire, max 50 caractères
-
-### Relations
-
-- 1 `User` possède plusieurs `Place`
-- 1 `Place` possède plusieurs `Review`
-- 1 `Place` possède plusieurs `Amenity`
-
-Les méthodes `to_dict()` sérialisent les objets avec des IDs (pas de nested objects complexes).
-
----
-
-## API REST
-
-L'application expose Swagger à l'URL:
-
-- `http://127.0.0.1:5000/api/v1/`
-
-Namespaces disponibles:
-
-- `/api/v1/users/`
-- `/api/v1/amenities/`
-- `/api/v1/places/`
-- `/api/v1/reviews/`
-
-### Endpoints principaux
-
-- **Users**
-    - `POST /api/v1/users/`
-    - `GET /api/v1/users/`
-    - `GET /api/v1/users/<user_id>`
-    - `PUT /api/v1/users/<user_id>`
-- **Amenities**
-    - `POST /api/v1/amenities/`
-    - `GET /api/v1/amenities/`
-    - `GET /api/v1/amenities/<amenity_id>`
-    - `PUT /api/v1/amenities/<amenity_id>`
-- **Places**
-    - `POST /api/v1/places/`
-    - `GET /api/v1/places/`
-    - `GET /api/v1/places/<place_id>`
-    - `PUT /api/v1/places/<place_id>`
-- **Reviews**
-    - `POST /api/v1/reviews/`
-    - `GET /api/v1/reviews/`
-    - `GET /api/v1/reviews/<review_id>`
-    - `PUT /api/v1/reviews/<review_id>`
-    - `DELETE /api/v1/reviews/<review_id>`
-
----
-
-## Installation et exécution
-
-Depuis `part2/`:
+From `part4/`:
 
 ```bash
 python3 -m venv venv
@@ -151,35 +60,55 @@ pip install -r requirements.txt
 python3 run.py
 ```
 
-Puis ouvrir Swagger:
+Open:
 
-- `http://127.0.0.1:5000/api/v1/`
+- Swagger: `http://localhost:5000/api/v1/`
 
----
-
-## Tests
-
-Depuis `part2/`:
+To serve the frontend locally in another terminal:
 
 ```bash
-python3 -m unittest discover -s test -p "test_*.py" -v
+python3 -m http.server 8080 --directory frontend
 ```
 
-Le détail des tests manuels/API est dans `TEST_REPORT.md`.
+Then open:
 
----
+- Frontend: `http://localhost:8080/login.html`
 
-## Limites actuelles
+## Docker
 
-- Persistance en mémoire uniquement (pas de base de données)
-- Pas d'authentification/autorisation dans cette étape
-- API centrée sur les opérations CRUD demandées pour la partie 2
+From the repository root:
 
----
+```bash
+docker compose up --build
+```
 
-## Auteurs
+Services:
 
-- Lorenzo Anselme
-- Lucas Mettetal
+- Backend API: `http://localhost:5001/api/v1/`
+- Frontend: `http://localhost:8080/login.html`
 
-Holberton School
+Notes:
+
+- the backend is built from [Dockerfile](/Users/nguyenmelya/Documents/holbertonschool-hbnb/part4/Dockerfile)
+- the frontend is served as a separate container
+- `part4/instance/` is mounted to persist the SQLite database
+- `part4/frontend/assets/uploads/` is mounted to persist uploaded profile images
+
+## Main Features
+
+- authentication with register / login
+- public place listing and place details
+- host profiles with public information
+- user profile editing with avatar upload
+- host place management
+- one review per user per place
+- host replies to reviews
+- notifications for new reviews on hosted places
+- review history in profile
+
+## Current Notes
+
+- frontend and backend are intentionally separated
+- API base URL is centralized in `frontend/js/runtime-config.js`
+- debug mode is driven by configuration instead of being hardcoded in `run.py`
+- runtime data such as SQLite files and uploads should stay out of Git

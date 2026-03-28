@@ -1,24 +1,29 @@
 import { getCurrentUserId, updateNavbar, logout } from "./auth.js";
 import {
   apiCreatePlace,
+  apiDeleteAllNotifications,
   apiDeletePlace,
   apiGetAmenities,
   apiDeleteNotification,
   apiGetNotifications,
   apiGetPlaces,
   apiGetReviews,
+  apiMarkAllNotificationsRead,
   apiGetUser,
   apiMarkNotificationRead,
   apiUpdatePlace,
+  apiUploadPlacePhoto,
   apiUploadProfilePhoto,
   apiUpdateUser,
-} from "./api.js";
+} from "./api.js?v=20260328i";
 
 let currentViewerId = null;
 let currentProfileId = null;
 let isOwnProfile = false;
 let amenities = [];
 let editingPlaceId = null;
+let currentPlaceImageUrls = [];
+let notificationsDeletePending = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
   updateNavbar();
@@ -91,8 +96,70 @@ function bindEvents() {
   const photoInput = document.getElementById("profile-photo-input");
   if (photoInput) photoInput.addEventListener("change", handlePhotoSelected);
 
+  const placePhotoTrigger = document.getElementById("place-photo-trigger");
+  if (placePhotoTrigger) {
+    placePhotoTrigger.addEventListener("click", handlePlacePhotoEdit);
+  }
+
+  const placePhotoInput = document.getElementById("place-photo-input");
+  if (placePhotoInput) {
+    placePhotoInput.addEventListener("change", handlePlacePhotoSelected);
+  }
+
   const closeModalBtn = document.getElementById("close-place-modal");
   if (closeModalBtn) closeModalBtn.addEventListener("click", closePlaceModal);
+
+  const readAllBtn = document.getElementById("notifications-read-all");
+  if (readAllBtn) {
+    readAllBtn.addEventListener("click", async () => {
+      try {
+        await apiMarkAllNotificationsRead();
+        await loadNotifications();
+      } catch (err) {
+        showAlert(
+          "profile-alert",
+          err.message || "Could not mark all notifications as read.",
+          "error",
+        );
+      }
+    });
+  }
+
+  const deleteAllBtn = document.getElementById("notifications-delete-all");
+  if (deleteAllBtn) {
+    deleteAllBtn.addEventListener("click", openNotificationsDeleteModal);
+  }
+
+  const notificationsDeleteCancel = document.getElementById(
+    "notifications-delete-cancel",
+  );
+  if (notificationsDeleteCancel) {
+    notificationsDeleteCancel.addEventListener(
+      "click",
+      closeNotificationsDeleteModal,
+    );
+  }
+
+  const notificationsDeleteConfirm = document.getElementById(
+    "notifications-delete-confirm",
+  );
+  if (notificationsDeleteConfirm) {
+    notificationsDeleteConfirm.addEventListener(
+      "click",
+      handleConfirmDeleteAllNotifications,
+    );
+  }
+
+  const notificationsDeleteModal = document.getElementById(
+    "notifications-delete-modal",
+  );
+  if (notificationsDeleteModal) {
+    notificationsDeleteModal.addEventListener("click", (event) => {
+      if (event.target === notificationsDeleteModal) {
+        closeNotificationsDeleteModal();
+      }
+    });
+  }
 
   const modal = document.getElementById("place-modal");
   if (modal) {
@@ -185,10 +252,23 @@ async function loadPlaces(userId) {
 
 async function loadNotifications() {
   const container = document.getElementById("notifications-list");
+  const readAllBtn = document.getElementById("notifications-read-all");
+  const deleteAllBtn = document.getElementById("notifications-delete-all");
   if (!container) return;
 
   try {
     const notifications = await apiGetNotifications();
+    const unreadCount = Array.isArray(notifications)
+      ? notifications.filter((notification) => !notification.is_read).length
+      : 0;
+    if (readAllBtn)
+      readAllBtn.style.display = unreadCount > 0 ? "inline-flex" : "none";
+    if (deleteAllBtn) {
+      deleteAllBtn.style.display =
+        Array.isArray(notifications) && notifications.length > 0
+          ? "inline-flex"
+          : "none";
+    }
     if (!Array.isArray(notifications) || notifications.length === 0) {
       container.innerHTML = `
         <div class="empty-state fade-in">
@@ -240,6 +320,8 @@ async function loadNotifications() {
         });
       });
   } catch (err) {
+    if (readAllBtn) readAllBtn.style.display = "none";
+    if (deleteAllBtn) deleteAllBtn.style.display = "none";
     container.innerHTML = `
       <div class="empty-state fade-in">
         <div class="empty-state-icon">⚠️</div>
@@ -444,6 +526,13 @@ function openPlaceModal(place = null) {
     : "Create place";
   document.getElementById("place_title").value = place?.title || "";
   document.getElementById("place_description").value = place?.description || "";
+  currentPlaceImageUrls = Array.isArray(place?.image_urls)
+    ? [...place.image_urls]
+    : place?.image_url
+      ? [place.image_url]
+      : [];
+  syncPlaceImageFields();
+  renderPlacePhotoPreview(currentPlaceImageUrls, place?.title || "");
   document.getElementById("place_price").value = place?.price ?? "";
   document.getElementById("place_latitude").value = place?.latitude ?? "";
   document.getElementById("place_longitude").value = place?.longitude ?? "";
@@ -472,6 +561,11 @@ function closePlaceModal() {
   document.body.classList.remove("modal-open");
   editingPlaceId = null;
   document.getElementById("place-modal-form").reset();
+  currentPlaceImageUrls = [];
+  syncPlaceImageFields();
+  renderPlacePhotoPreview([], "");
+  const placePhotoInput = document.getElementById("place-photo-input");
+  if (placePhotoInput) placePhotoInput.value = "";
   document
     .querySelectorAll('#modal-amenities-list input[type="checkbox"]')
     .forEach((input) => {
@@ -480,6 +574,155 @@ function closePlaceModal() {
   updateAmenitySelectionSummary();
   setAmenitiesPanelOpen(false);
   showAlert("place-form-alert", "", "error");
+}
+
+function openNotificationsDeleteModal() {
+  const modal = document.getElementById("notifications-delete-modal");
+  if (!modal) return;
+  notificationsDeletePending = true;
+  modal.hidden = false;
+}
+
+function closeNotificationsDeleteModal() {
+  const modal = document.getElementById("notifications-delete-modal");
+  if (!modal) return;
+  notificationsDeletePending = false;
+  modal.hidden = true;
+}
+
+async function handleConfirmDeleteAllNotifications() {
+  if (!notificationsDeletePending) return;
+  try {
+    await apiDeleteAllNotifications();
+    closeNotificationsDeleteModal();
+    await loadNotifications();
+  } catch (err) {
+    showAlert(
+      "profile-alert",
+      err.message || "Could not delete all notifications.",
+      "error",
+    );
+  }
+}
+
+function handlePlacePhotoEdit() {
+  if (!isOwnProfile) return;
+  const placePhotoInput = document.getElementById("place-photo-input");
+  if (!placePhotoInput) return;
+  placePhotoInput.click();
+}
+
+function handlePlacePhotoSelected(event) {
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) return;
+
+  for (const file of files) {
+    if (!file.type.startsWith("image/")) {
+      showAlert("place-form-alert", "Please select image files only.", "error");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 2_500_000) {
+      showAlert(
+        "place-form-alert",
+        "Each image must be smaller than 2.5 MB.",
+        "error",
+      );
+      event.target.value = "";
+      return;
+    }
+  }
+
+  uploadSelectedPlacePhotos(files).finally(() => {
+    event.target.value = "";
+  });
+}
+
+async function uploadSelectedPlacePhotos(files) {
+  setLoading("place", true);
+  showAlert("place-form-alert", "", "error");
+
+  try {
+    for (const file of files) {
+      const result = await apiUploadPlacePhoto(file);
+      const imageUrl = result?.image_url || "";
+      if (imageUrl && !currentPlaceImageUrls.includes(imageUrl)) {
+        currentPlaceImageUrls.push(imageUrl);
+      }
+    }
+    syncPlaceImageFields();
+    renderPlacePhotoPreview(
+      currentPlaceImageUrls,
+      document.getElementById("place_title").value.trim(),
+    );
+    showAlert(
+      "place-form-alert",
+      files.length > 1
+        ? "Place photos uploaded successfully."
+        : "Place photo uploaded successfully.",
+      "success",
+    );
+  } catch (err) {
+    showAlert(
+      "place-form-alert",
+      err.message || "Could not upload the place photos.",
+      "error",
+    );
+  } finally {
+    setLoading("place", false);
+  }
+}
+
+function renderPlacePhotoPreview(imageUrls, title) {
+  const preview = document.getElementById("place-photo-preview");
+  const placeholder = document.getElementById("place-photo-placeholder");
+  const label = document.getElementById("place-photo-label");
+  const gallery = document.getElementById("place-photo-gallery");
+  if (!preview || !placeholder || !label || !gallery) return;
+
+  if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+    preview.src = resolvePlaceImageUrl(imageUrls[0]);
+    preview.alt = title ? `${title} preview` : "Place preview";
+    preview.hidden = false;
+    placeholder.hidden = true;
+    label.textContent = "Add or change photos";
+    gallery.innerHTML = imageUrls
+      .map(
+        (imageUrl, index) => `
+          <div class="place-photo-gallery-item">
+            <img src="${escapeHtml(resolvePlaceImageUrl(imageUrl))}" alt="${escapeHtml(title || `Place photo ${index + 1}`)}" class="place-photo-gallery-image">
+            <button type="button" class="place-photo-remove" data-image-index="${index}" aria-label="Remove photo">Remove</button>
+          </div>
+        `,
+      )
+      .join("");
+    gallery.querySelectorAll("[data-image-index]").forEach((button) => {
+      button.addEventListener("click", () => {
+        currentPlaceImageUrls.splice(Number(button.dataset.imageIndex), 1);
+        syncPlaceImageFields();
+        renderPlacePhotoPreview(
+          currentPlaceImageUrls,
+          document.getElementById("place_title").value.trim(),
+        );
+      });
+    });
+    return;
+  }
+
+  preview.hidden = true;
+  preview.removeAttribute("src");
+  placeholder.hidden = false;
+  label.textContent = "Choose photos from your device";
+  gallery.innerHTML = "";
+}
+
+function syncPlaceImageFields() {
+  document.getElementById("place_image_url").value =
+    currentPlaceImageUrls[0] || "";
+  document.getElementById("place_image_urls").value = JSON.stringify(
+    currentPlaceImageUrls,
+  );
 }
 
 function renderAmenityChoices(items) {
@@ -559,6 +802,8 @@ async function handlePlaceSubmit(event) {
   const payload = {
     title: document.getElementById("place_title").value.trim(),
     description: document.getElementById("place_description").value.trim(),
+    image_url: currentPlaceImageUrls[0] || "",
+    image_urls: [...currentPlaceImageUrls],
     price: parseFloat(document.getElementById("place_price").value),
     latitude: parseFloat(document.getElementById("place_latitude").value),
     longitude: parseFloat(document.getElementById("place_longitude").value),
@@ -569,13 +814,14 @@ async function handlePlaceSubmit(event) {
 
   if (
     !payload.title ||
+    payload.image_urls.length === 0 ||
     Number.isNaN(payload.price) ||
     Number.isNaN(payload.latitude) ||
     Number.isNaN(payload.longitude)
   ) {
     showAlert(
       "place-form-alert",
-      "Please fill in all required fields.",
+      "Please fill in all required fields and add at least one photo.",
       "error",
     );
     return;
@@ -635,9 +881,11 @@ function renderPlaceCard(place) {
   const description = place.description
     ? `${place.description.slice(0, 120)}${place.description.length > 120 ? "…" : ""}`
     : "No description available.";
+  const imageUrl = resolvePlaceImageUrl(getPrimaryPlaceImage(place));
 
   return `
     <article class="place-card fade-in">
+      <div class="place-card-image-wrapper"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(place.title || "Place image")}" class="place-card-image" onerror="this.onerror=null;this.src='${window.location.origin}/assets/demo-places/paris-studio.jpg';"></div>
       <h3 class="place-card-title">${escapeHtml(place.title || "Untitled place")}</h3>
       <div class="place-card-meta">
         <span class="badge badge-price">${escapeHtml(price)}</span>
@@ -708,6 +956,24 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function resolvePlaceImageUrl(imageUrl) {
+  const fallback = `${window.location.origin}/assets/demo-places/paris-studio.jpg`;
+
+  if (!imageUrl) return fallback;
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (imageUrl.startsWith("assets/")) {
+    return `${window.location.origin}/${imageUrl}`;
+  }
+  return imageUrl;
+}
+
+function getPrimaryPlaceImage(place) {
+  if (Array.isArray(place?.image_urls) && place.image_urls.length > 0) {
+    return place.image_urls[0];
+  }
+  return place?.image_url || "";
 }
 
 function formatDate(value) {

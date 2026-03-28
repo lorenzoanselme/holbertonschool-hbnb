@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ./part4
+      dockerfile: Dockerfile
+    container_name: hbnb-backend
+    environment:
+      SECRET_KEY: dev_secret_key
+      JWT_SECRET_KEY: dev_jwt_secret_key
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./part4/instance:/app/instance
+      - ./part4/frontend/assets/uploads:/app/frontend/assets/uploads
+
+  frontend:
+    image: python:3.11-slim
+    container_name: hbnb-frontend
+    working_dir: /srv
+    command: python -m http.server 8080 --directory /srv/frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./part4/frontend:/srv/frontend:ro

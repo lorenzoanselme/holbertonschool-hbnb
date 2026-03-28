@@ -3,7 +3,9 @@
  * All fetch calls go through this module.
  */
 
-const API_BASE_URL = "http://localhost:5000/api/v1";
+const API_BASE_URL =
+  window.HBNB_API_BASE_URL ||
+  `${window.location.protocol}//${window.location.hostname}:5001/api/v1`;
 
 // ──────────────────────────────────────────────────
 // Cookie helpers
@@ -53,7 +55,7 @@ async function request(endpoint, options = {}) {
   } catch (networkError) {
     console.error(
       "[HBnB] Network error — backend unreachable.\n" +
-        "Make sure Flask is running on http://localhost:5000\n" +
+        `Make sure Flask is running on ${API_BASE_URL}\n` +
         "and CORS is enabled:\n\n" +
         "  from flask_cors import CORS\n" +
         "  CORS(app)\n",
@@ -163,6 +165,15 @@ export async function apiUploadProfilePhoto(id, file) {
   });
 }
 
+export async function apiUploadPlacePhoto(file) {
+  const formData = new FormData();
+  formData.append("photo", file);
+  return request("/places/photo", {
+    method: "POST",
+    body: formData,
+  });
+}
+
 export async function apiGetPlaces() {
   return request("/places/");
 }
@@ -227,6 +238,19 @@ export async function apiMarkNotificationRead(notificationId) {
   return request(`/notifications/${notificationId}/read`, {
     method: "PUT",
     body: JSON.stringify({}),
+  });
+}
+
+export async function apiMarkAllNotificationsRead() {
+  return request("/notifications/bulk/read", {
+    method: "PUT",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function apiDeleteAllNotifications() {
+  return request("/notifications/bulk/delete", {
+    method: "DELETE",
   });
 }
 
