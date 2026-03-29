@@ -10,6 +10,7 @@ from flask_jwt_extended import (
     jwt_required,
     verify_jwt_in_request,
 )
+from flask_jwt_extended.exceptions import JWTExtendedException
 from flask_restx import Namespace, Resource, fields
 from werkzeug.utils import secure_filename
 
@@ -139,9 +140,13 @@ class UsersItem(Resource):
         user = facade.get_user(user_id)
         if not user:
             return {"error": "User not found"}, 404
-        verify_jwt_in_request(optional=True)
-        current_user_id = get_jwt_identity()
-        claims = get_jwt() if current_user_id else {}
+        try:
+            verify_jwt_in_request(optional=True)
+            current_user_id = get_jwt_identity()
+            claims = get_jwt() if current_user_id else {}
+        except JWTExtendedException:
+            current_user_id = None
+            claims = {}
         include_private = current_user_id == user_id or claims.get("is_admin", False)
         return serialize_user(user, include_private=include_private), 200
 

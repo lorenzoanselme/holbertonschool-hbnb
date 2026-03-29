@@ -141,9 +141,7 @@ class Place(BaseModel):
             raise ValueError("longitude must be between -180 and 180")
         return value
 
-    def to_dict(self):
-        reviews = cast(list[Review], self.reviews)
-        amenities = cast(list[Amenity], self.amenities)
+    def to_dict(self, include_reviews=True, include_amenities=True):
         image_urls = self.get_image_urls()
         return {
             "id": self.id,
@@ -157,6 +155,17 @@ class Place(BaseModel):
             "owner_id": self.owner_id,
             "created_at": self._serialize_datetime(self.created_at),
             "updated_at": self._serialize_datetime(self.updated_at),
-            "reviews": [r.to_dict() for r in reviews],
-            "amenities": [{"id": a.id, "name": a.name} for a in amenities],
+            "reviews": (
+                [r.to_dict() for r in cast(list[Review], self.reviews)]
+                if include_reviews
+                else []
+            ),
+            "amenities": (
+                [
+                    {"id": a.id, "name": a.name}
+                    for a in cast(list[Amenity], self.amenities)
+                ]
+                if include_amenities
+                else []
+            ),
         }

@@ -24,6 +24,9 @@ let amenities = [];
 let editingPlaceId = null;
 let currentPlaceImageUrls = [];
 let notificationsDeletePending = false;
+let placesCollectionPromise = null;
+let reviewsCollectionPromise = null;
+const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
 
 document.addEventListener("DOMContentLoaded", async () => {
   updateNavbar();
@@ -192,7 +195,7 @@ async function loadProfile(userId) {
 async function loadPlaces(userId) {
   const container = document.getElementById("profile-places");
   try {
-    const places = await apiGetPlaces();
+    const places = await getPlacesCollection();
     const ownedPlaces = Array.isArray(places)
       ? places.filter((place) => place.owner_id === userId)
       : [];
@@ -348,8 +351,8 @@ async function loadMyReviews() {
 
   try {
     const [reviews, places] = await Promise.all([
-      apiGetReviews(),
-      apiGetPlaces(),
+      getReviewsCollection(),
+      getPlacesCollection(),
     ]);
     const myReviews = Array.isArray(reviews)
       ? reviews.filter((review) => review.user_id === currentProfileId)
@@ -385,6 +388,30 @@ async function loadMyReviews() {
       err.message || "An unexpected error occurred.",
     );
   }
+}
+
+function getPlacesCollection(forceRefresh = false) {
+  if (!forceRefresh && placesCollectionPromise) {
+    return placesCollectionPromise;
+  }
+
+  placesCollectionPromise = apiGetPlaces().catch((error) => {
+    placesCollectionPromise = null;
+    throw error;
+  });
+  return placesCollectionPromise;
+}
+
+function getReviewsCollection(forceRefresh = false) {
+  if (!forceRefresh && reviewsCollectionPromise) {
+    return reviewsCollectionPromise;
+  }
+
+  reviewsCollectionPromise = apiGetReviews().catch((error) => {
+    reviewsCollectionPromise = null;
+    throw error;
+  });
+  return reviewsCollectionPromise;
 }
 
 function renderProfileSummary(user) {
@@ -462,10 +489,10 @@ function handlePhotoSelected(event) {
     return;
   }
 
-  if (file.size > 1_500_000) {
+  if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     showAlert(
       "profile-alert",
-      "Image too large. Please choose a file smaller than 1.5 MB.",
+      "Image too large. Please choose a file smaller than 5 MB.",
       "error",
     );
     event.target.value = "";
@@ -649,10 +676,10 @@ function handlePlacePhotoSelected(event) {
       return;
     }
 
-    if (file.size > 2_500_000) {
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
       showAlert(
         "place-form-alert",
-        "Each image must be smaller than 2.5 MB.",
+        "Each image must be smaller than 5 MB.",
         "error",
       );
       event.target.value = "";
@@ -884,6 +911,7 @@ async function handlePlaceSubmit(event) {
     } else {
       await apiCreatePlace(payload);
     }
+    placesCollectionPromise = null;
     closePlaceModal();
     await loadPlaces(currentProfileId);
     showAlert(
@@ -910,6 +938,7 @@ async function handleDeletePlace(placeId) {
 
   try {
     await apiDeletePlace(placeId);
+    placesCollectionPromise = null;
     showAlert("places-alert", "Place deleted successfully.", "success");
     await loadPlaces(currentProfileId);
   } catch (err) {

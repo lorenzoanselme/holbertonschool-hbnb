@@ -106,7 +106,9 @@ class PlaceList(Resource):
     def get(self):
         """Retrieve a list of all places"""
         places = facade.get_all_places()
-        return [p.to_dict() for p in places], 200
+        return [
+            p.to_dict(include_reviews=False, include_amenities=False) for p in places
+        ], 200
 
 
 @api.route("/<string:place_id>")

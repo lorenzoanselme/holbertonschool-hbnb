@@ -6,8 +6,10 @@ from flask import Flask, jsonify, request
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_jwt_extended.exceptions import JWTExtendedException
 from flask_restx import Api
 from flask_sqlalchemy import SQLAlchemy
+from jwt import ExpiredSignatureError, InvalidTokenError
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -71,6 +73,17 @@ def ensure_sqlite_columns(app):
             )
 
 
+def initialize_database(app):
+    with app.app_context():
+        db.create_all()
+        ensure_sqlite_columns(app)
+        db.session.execute(
+            text("DELETE FROM revoked_tokens WHERE expires_at < :now"),
+            {"now": datetime.utcnow()},
+        )
+        db.session.commit()
+
+
 def create_app(config_class="config.Config"):
     from app.api.v1.amenities import api as amenities_ns
     from app.api.v1.auth import api as auth_ns
@@ -122,25 +135,52 @@ def create_app(config_class="config.Config"):
     api.add_namespace(auth_ns, path="/api/v1/auth")
     api.add_namespace(notifications_ns, path="/api/v1/notifications")
 
-    with app.app_context():
-        db.create_all()
-        ensure_sqlite_columns(app)
-        db.session.execute(
-            text("DELETE FROM revoked_tokens WHERE expires_at < :now"),
-            {"now": datetime.utcnow()},
-        )
-        db.session.commit()
+    if os.getenv("HBNB_SKIP_APP_DB_INIT") != "1":
+        initialize_database(app)
 
     @jwt.token_in_blocklist_loader
     def is_token_revoked(_jwt_header, jwt_payload):
         jti = jwt_payload.get("jti")
         if not jti:
             return False
-        return db.session.query(RevokedToken.id).filter_by(jti=jti).first() is not None
+        with db.engine.connect() as connection:
+            result = connection.execute(
+                text("SELECT 1 FROM revoked_tokens WHERE jti = :jti LIMIT 1"),
+                {"jti": jti},
+            )
+            return result.scalar() is not None
 
     @jwt.revoked_token_loader
     def revoked_token_callback(_jwt_header, _jwt_payload):
         return jsonify({"error": "Session has been revoked"}), 401
+
+    @jwt.expired_token_loader
+    def expired_token_callback(_jwt_header, _jwt_payload):
+        return jsonify({"error": "Session has expired"}), 401
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(_error_message):
+        return jsonify({"error": "Invalid authentication token"}), 401
+
+    @jwt.unauthorized_loader
+    def unauthorized_callback(_error_message):
+        return jsonify({"error": "Authentication required"}), 401
+
+    @jwt.needs_fresh_token_loader
+    def needs_fresh_token_callback(_jwt_header, _jwt_payload):
+        return jsonify({"error": "Fresh authentication required"}), 401
+
+    @app.errorhandler(ExpiredSignatureError)
+    def handle_expired_signature(_error):
+        return jsonify({"error": "Session has expired"}), 401
+
+    @app.errorhandler(InvalidTokenError)
+    def handle_invalid_signature(_error):
+        return jsonify({"error": "Invalid authentication token"}), 401
+
+    @app.errorhandler(JWTExtendedException)
+    def handle_jwt_error(error):
+        return jsonify({"error": str(error) or "Authentication failed"}), 401
 
     @app.after_request
     def apply_security_headers(response):

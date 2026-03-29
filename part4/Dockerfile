@@ -21,4 +21,4 @@ USER appuser
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--preload", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "--timeout", "60", "run:app"]
+CMD ["sh", "-c", "python -c \"from app import create_app, initialize_database; app = create_app(); initialize_database(app)\" && HBNB_SKIP_APP_DB_INIT=1 exec gunicorn --bind 0.0.0.0:5000 --workers 2 --threads 4 --timeout 60 run:app"]

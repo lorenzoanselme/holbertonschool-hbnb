@@ -116,6 +116,7 @@ class Login(Resource):
 
         response = jsonify({"user": serialize_user(user)})
         set_access_cookies(response, access_token)
+        response.delete_cookie("token", path="/")
         audit_event("auth.login.succeeded", user_id=str(user.id), email=user.email)
         return response
 
@@ -198,5 +199,6 @@ class Logout(Resource):
                 db.session.commit()
         response = jsonify({"message": "Logged out"})
         unset_jwt_cookies(response)
+        response.delete_cookie("token", path="/")
         audit_event("auth.logout", user_id=get_jwt_identity())
         return response

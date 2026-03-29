@@ -7,6 +7,10 @@ const API_BASE_URL =
   window.HBNB_API_BASE_URL ||
   `${window.location.protocol}//${window.location.hostname}:${window.location.protocol === "https:" ? "5443" : "5001"}/api/v1`;
 
+const REQUEST_TIMEOUT_MS = 12000;
+
+clearLegacyAuthCookie();
+
 function getCookie(name) {
   const match = document.cookie.match(
     new RegExp(
@@ -35,6 +39,7 @@ async function request(endpoint, options = {}) {
   }
 
   const method = String(options.method || "GET").toUpperCase();
+  const isIdempotent = ["GET", "HEAD", "OPTIONS"].includes(method);
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
     const csrfToken = getCookie("csrf_access_token");
     if (csrfToken) {
@@ -42,21 +47,46 @@ async function request(endpoint, options = {}) {
     }
   }
 
-  let response;
-  try {
-    response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-      credentials: "include",
-    });
-  } catch (networkError) {
-    console.error(
-      "[HBnB] Network error — backend unreachable.\n" +
-        `Make sure Flask is running on ${API_BASE_URL}\n` +
-        "and CORS is enabled:\n\n" +
-        "  from flask_cors import CORS\n" +
-        "  CORS(app)\n",
+  let response = null;
+  let lastNetworkError = null;
+
+  for (let attempt = 0; attempt < (isIdempotent ? 2 : 1); attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort("request-timeout"),
+      REQUEST_TIMEOUT_MS,
     );
+
+    try {
+      response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers,
+        credentials: "include",
+        signal: controller.signal,
+      });
+      window.clearTimeout(timeoutId);
+      break;
+    } catch (networkError) {
+      window.clearTimeout(timeoutId);
+      lastNetworkError = networkError;
+      if (!isIdempotent || attempt > 0) {
+        console.error(
+          "[HBnB] Network error — backend unreachable.\n" +
+            `Make sure Flask is running on ${API_BASE_URL}\n`,
+        );
+        if (networkError?.name === "AbortError") {
+          throw new Error("The server took too long to respond.");
+        }
+        throw new Error("Unable to reach the server. Is the backend running?");
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+    }
+  }
+
+  if (!response) {
+    if (lastNetworkError?.name === "AbortError") {
+      throw new Error("The server took too long to respond.");
+    }
     throw new Error("Unable to reach the server. Is the backend running?");
   }
 
@@ -152,6 +182,11 @@ export async function apiLogout() {
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+function clearLegacyAuthCookie() {
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `token=; Max-Age=0; path=/; SameSite=Lax${secure}`;
 }
 
 // ──────────────────────────────────────────────────
