@@ -26,8 +26,9 @@ services:
       FLASK_CONFIG: ${FLASK_CONFIG:-config.DevelopmentConfig}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in your environment or .env file}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in your environment or .env file}
+      SECURITY_LOG_FILE: ${SECURITY_LOG_FILE:-/tmp/security.log}
       JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-0}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081}
       SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI:-postgresql+psycopg://hbnb:${POSTGRES_PASSWORD}@db:5432/hbnb}
       PYTHONUNBUFFERED: "1"
     volumes:
@@ -45,16 +46,7 @@ services:
       - "5001:80"
     volumes:
       - ./part4/deploy/nginx/api-gateway.conf:/etc/nginx/conf.d/default.conf:ro
-
-  frontend:
-    image: python:3.11-slim
-    container_name: hbnb-frontend
-    working_dir: /srv
-    command: python -m http.server 8080 --directory /srv/frontend
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./part4/frontend:/srv/frontend:ro
+      - ./part4/frontend:/usr/share/nginx/html:ro
 
 volumes:
   postgres_data:

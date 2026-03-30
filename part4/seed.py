@@ -3,10 +3,12 @@ seed.py — Populate the database with demo data.
 Run: python3 seed.py
 """
 
+import os
+
 from app import create_app
 from app.services.facade import HBnBFacade
 
-app = create_app()
+app = create_app(os.getenv("FLASK_CONFIG", "config.DevelopmentConfig"))
 facade = HBnBFacade()
 
 USERS = [
