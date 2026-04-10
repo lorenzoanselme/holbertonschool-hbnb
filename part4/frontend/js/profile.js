@@ -1,13 +1,17 @@
-import { getCurrentUserId, updateNavbar, logout } from "./auth.js";
+import { getCurrentUser, getCurrentUserId, updateNavbar, logout } from "./auth.js";
+import { forwardGeocode, reverseGeocode } from "./geo.js";
 import {
   apiCreatePlace,
   apiDeleteAllNotifications,
   apiDeletePlace,
+  apiDeleteReview,
+  apiBanUser,
   apiGetAmenities,
   apiDeleteNotification,
   apiGetNotifications,
   apiGetPlaces,
   apiGetReviews,
+  apiGetUsers,
   apiMarkAllNotificationsRead,
   apiGetUser,
   apiMarkNotificationRead,
@@ -19,13 +23,18 @@ import {
 
 let currentViewerId = null;
 let currentProfileId = null;
+let currentViewer = null;
 let isOwnProfile = false;
+let isAdminViewer = false;
 let amenities = [];
 let editingPlaceId = null;
 let currentPlaceImageUrls = [];
 let notificationsDeletePending = false;
 let placesCollectionPromise = null;
 let reviewsCollectionPromise = null;
+let usersCollectionPromise = null;
+let activeAdminTab = "users";
+let confirmActionResolver = null;
 const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -34,8 +43,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const logoutBtn = document.getElementById("nav-logout");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
+  currentViewer = getCurrentUser();
   currentViewerId = getCurrentUserId();
   currentProfileId = getRequestedProfileId();
+  isAdminViewer = Boolean(currentViewer?.is_admin);
 
   if (!currentProfileId) {
     window.location.href = "login.html";
@@ -59,6 +70,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   ]);
 
   const params = new URLSearchParams(window.location.search);
+  if (isAdminViewer && params.get("admin") === "1") {
+    await openAdminModal();
+  }
   if (isOwnProfile && params.get("action") === "new-place") {
     openPlaceModal();
   }
@@ -172,6 +186,88 @@ function bindEvents() {
   if (amenitiesToggle) {
     amenitiesToggle.addEventListener("click", toggleAmenitiesPanel);
   }
+
+  document.querySelectorAll(".admin-tab").forEach((button) => {
+    button.addEventListener("click", () => {
+      setActiveAdminTab(button.dataset.adminTab || "users");
+    });
+  });
+
+  const closeAdminModalBtn = document.getElementById("close-admin-modal");
+  if (closeAdminModalBtn) {
+    closeAdminModalBtn.addEventListener("click", closeAdminModal);
+  }
+
+  const adminModal = document.getElementById("admin-modal");
+  if (adminModal) {
+    adminModal.addEventListener("click", (event) => {
+      if (event.target === adminModal) closeAdminModal();
+    });
+  }
+
+  const profileBanButton = document.getElementById("profile-ban-user");
+  if (profileBanButton) {
+    profileBanButton.addEventListener("click", handleBanCurrentProfile);
+  }
+
+  const actionConfirmCancel = document.getElementById("action-confirm-cancel");
+  if (actionConfirmCancel) {
+    actionConfirmCancel.addEventListener("click", () => closeActionConfirm(false));
+  }
+
+  const actionConfirmSubmit = document.getElementById("action-confirm-submit");
+  if (actionConfirmSubmit) {
+    actionConfirmSubmit.addEventListener("click", () => closeActionConfirm(true));
+  }
+
+  const actionConfirmModal = document.getElementById("action-confirm-modal");
+  if (actionConfirmModal) {
+    actionConfirmModal.addEventListener("click", (event) => {
+      if (event.target === actionConfirmModal) closeActionConfirm(false);
+    });
+  }
+}
+
+function confirmAction({
+  title = "Are you sure?",
+  message = "Please confirm this action.",
+  confirmLabel = "Confirm",
+  confirmClassName = "login-button profile-delete-btn",
+  kicker = "Confirm action",
+}) {
+  const modal = document.getElementById("action-confirm-modal");
+  const titleEl = document.getElementById("action-confirm-title");
+  const copyEl = document.getElementById("action-confirm-copy");
+  const submitEl = document.getElementById("action-confirm-submit");
+  const kickerEl = document.getElementById("action-confirm-kicker");
+  if (!modal || !titleEl || !copyEl || !submitEl || !kickerEl) {
+    return Promise.resolve(false);
+  }
+
+  titleEl.textContent = title;
+  copyEl.textContent = message;
+  submitEl.textContent = confirmLabel;
+  submitEl.className = confirmClassName;
+  kickerEl.textContent = kicker;
+  modal.hidden = false;
+  document.body.classList.add("modal-open");
+
+  return new Promise((resolve) => {
+    confirmActionResolver = resolve;
+  });
+}
+
+function closeActionConfirm(confirmed) {
+  const modal = document.getElementById("action-confirm-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+  document.body.classList.remove("modal-open");
+  if (confirmActionResolver) {
+    const resolver = confirmActionResolver;
+    confirmActionResolver = null;
+    resolver(confirmed);
+  }
 }
 
 async function loadProfile(userId) {
@@ -234,6 +330,17 @@ async function loadPlaces(userId) {
       .forEach((button) => {
         button.addEventListener("click", () =>
           handleDeletePlace(button.dataset.placeId),
+        );
+      });
+
+    container
+      .querySelectorAll('[data-action="toggle-place-visibility"]')
+      .forEach((button) => {
+        button.addEventListener("click", () =>
+          handleTogglePlaceVisibility(
+            button.dataset.placeId,
+            button.dataset.placeHidden === "true",
+          ),
         );
       });
   } catch (err) {
@@ -395,7 +502,9 @@ function getPlacesCollection(forceRefresh = false) {
     return placesCollectionPromise;
   }
 
-  placesCollectionPromise = apiGetPlaces().catch((error) => {
+  placesCollectionPromise = apiGetPlaces({
+    ownerScope: isOwnProfile,
+  }).catch((error) => {
     placesCollectionPromise = null;
     throw error;
   });
@@ -414,6 +523,386 @@ function getReviewsCollection(forceRefresh = false) {
   return reviewsCollectionPromise;
 }
 
+function getUsersCollection(forceRefresh = false) {
+  if (!forceRefresh && usersCollectionPromise) {
+    return usersCollectionPromise;
+  }
+
+  usersCollectionPromise = apiGetUsers().catch((error) => {
+    usersCollectionPromise = null;
+    throw error;
+  });
+  return usersCollectionPromise;
+}
+
+async function loadAdminPanel() {
+  if (!isAdminViewer) return;
+
+  try {
+    const [users, places, reviews] = await Promise.all([
+      getUsersCollection(true),
+      apiGetPlaces({ adminScope: true }),
+      apiGetReviews({ adminScope: true }),
+    ]);
+    renderAdminUsers(Array.isArray(users) ? users : []);
+    renderAdminPlaces(Array.isArray(places) ? places : [], users);
+    renderAdminReviews(Array.isArray(reviews) ? reviews : [], users, places);
+    setActiveAdminTab(activeAdminTab);
+  } catch (err) {
+    showAlert(
+      "admin-alert",
+      err.message || "Unable to load admin data.",
+      "error",
+    );
+  }
+}
+
+function setActiveAdminTab(tab) {
+  activeAdminTab = tab;
+  document.querySelectorAll(".admin-tab").forEach((button) => {
+    const isActive = button.dataset.adminTab === tab;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+  document.querySelectorAll("[data-admin-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.adminPanel !== tab;
+  });
+}
+
+function renderAdminUsers(users) {
+  const container = document.getElementById("admin-users-list");
+  if (!container) return;
+
+  if (!users.length) {
+    renderEmptyState(container, "👤", "No users", "No users were found.");
+    return;
+  }
+
+  const sortedUsers = [...users].sort((a, b) =>
+    `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`),
+  );
+
+  container.replaceChildren(
+    ...sortedUsers.map((user) => {
+      const article = document.createElement("article");
+      article.className = "admin-record-card";
+
+      const copy = document.createElement("div");
+      copy.className = "admin-record-copy";
+
+      const titleLink = document.createElement("a");
+      titleLink.className = "admin-record-link";
+      titleLink.href = `profile.html?id=${encodeURIComponent(user.id)}`;
+      titleLink.textContent =
+        `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email;
+
+      const meta = document.createElement("p");
+      meta.className = "admin-record-meta";
+      meta.textContent = `${user.email}${user.is_admin ? " • Admin" : " • Member"}${user.is_banned ? " • Banned" : ""}`;
+
+      copy.appendChild(titleLink);
+      copy.appendChild(meta);
+
+      const actions = document.createElement("div");
+      actions.className = "admin-record-actions";
+
+      if (user.id !== currentViewerId) {
+        const toggleAdminButton = document.createElement("button");
+        toggleAdminButton.type = "button";
+        toggleAdminButton.className = "login-button";
+        toggleAdminButton.textContent = user.is_admin
+          ? "Remove admin"
+          : "Make admin";
+        toggleAdminButton.addEventListener("click", async () => {
+          const confirmed = await confirmAction({
+            kicker: "Admin panel",
+            title: user.is_admin ? "Remove admin rights?" : "Grant admin rights?",
+            message: user.is_admin
+              ? `Remove admin rights from ${titleLink.textContent}?`
+              : `Give admin rights to ${titleLink.textContent}?`,
+            confirmLabel: user.is_admin ? "Remove admin" : "Make admin",
+            confirmClassName: "login-button",
+          });
+          if (!confirmed) return;
+          try {
+            await apiUpdateUser(user.id, { is_admin: !user.is_admin });
+            showAlert("admin-alert", "User updated successfully.", "success");
+            await loadAdminPanel();
+          } catch (err) {
+            showAlert(
+              "admin-alert",
+              err.message || "Unable to update this user.",
+              "error",
+            );
+          }
+        });
+        actions.appendChild(toggleAdminButton);
+
+        const banButton = document.createElement("button");
+        banButton.type = "button";
+        banButton.className = "login-button profile-delete-btn";
+        banButton.textContent = user.is_banned ? "Unban" : "Ban user";
+        banButton.addEventListener("click", async () => {
+          const actionLabel = user.is_banned ? "unban" : "ban";
+          const confirmMessage = user.is_banned
+            ? `Unban ${titleLink.textContent}? Their profile, places, and reviews will become visible again.`
+            : `Ban ${titleLink.textContent}? Their access will be blocked and their profile, places, and reviews will be hidden from other users.`;
+          const confirmed = await confirmAction({
+            kicker: "Admin panel",
+            title: user.is_banned ? "Unban this user?" : "Ban this user?",
+            message: confirmMessage,
+            confirmLabel: user.is_banned ? "Unban" : "Ban user",
+          });
+          if (!confirmed) return;
+          try {
+            usersCollectionPromise = null;
+            if (user.is_banned) {
+              await apiUpdateUser(user.id, { is_banned: false });
+            } else {
+              await apiBanUser(user.id);
+            }
+            showAlert(
+              "admin-alert",
+              `User ${actionLabel}ned successfully.`,
+              "success",
+            );
+            await loadAdminPanel();
+          } catch (err) {
+            showAlert(
+              "admin-alert",
+              err.message || "Unable to ban this user.",
+              "error",
+            );
+          }
+        });
+        actions.appendChild(banButton);
+      }
+
+      article.appendChild(copy);
+      article.appendChild(actions);
+      return article;
+    }),
+  );
+}
+
+async function openAdminModal() {
+  if (!isAdminViewer) return;
+  const modal = document.getElementById("admin-modal");
+  if (!modal) return;
+  modal.hidden = false;
+  document.body.classList.add("modal-open");
+  await loadAdminPanel();
+}
+
+function closeAdminModal() {
+  const modal = document.getElementById("admin-modal");
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+async function handleBanCurrentProfile() {
+  if (!isAdminViewer || isOwnProfile || !currentProfileId) return;
+
+  try {
+    const profileData = await apiGetUser(currentProfileId);
+    const isCurrentlyBanned = Boolean(profileData?.is_banned);
+    const confirmMessage = isCurrentlyBanned
+      ? "Unban this user? Their profile, places, and reviews will be visible again."
+      : "Ban this user? Their access will be blocked and their profile, places, and reviews will be hidden from others.";
+    const confirmed = await confirmAction({
+      kicker: "Profile moderation",
+      title: isCurrentlyBanned ? "Unban this user?" : "Ban this user?",
+      message: confirmMessage,
+      confirmLabel: isCurrentlyBanned ? "Unban" : "Ban user",
+    });
+    if (!confirmed) return;
+
+    if (isCurrentlyBanned) {
+      await apiUpdateUser(currentProfileId, { is_banned: false });
+      showAlert("profile-alert", "User unbanned successfully.", "success");
+    } else {
+      await apiBanUser(currentProfileId);
+      showAlert("profile-alert", "User banned successfully.", "success");
+    }
+    await loadProfile(currentProfileId);
+  } catch (err) {
+    showAlert(
+      "profile-alert",
+      err.message || "Unable to ban this user.",
+      "error",
+    );
+  }
+}
+
+function renderAdminPlaces(places, users = []) {
+  const container = document.getElementById("admin-places-list");
+  if (!container) return;
+
+  if (!places.length) {
+    renderEmptyState(container, "🏠", "No places", "No places were found.");
+    return;
+  }
+
+  const sortedPlaces = [...places].sort((a, b) =>
+    (b.created_at || "").localeCompare(a.created_at || ""),
+  );
+  const userMap = new Map((users || []).map((user) => [user.id, user]));
+
+  container.replaceChildren(
+    ...sortedPlaces.map((place) => {
+      const article = document.createElement("article");
+      article.className = "admin-record-card admin-place-card";
+
+      const image = document.createElement("img");
+      image.className = "admin-record-thumb";
+      image.src = resolvePlaceImageUrl(getPrimaryPlaceImage(place));
+      image.alt = place.title || "Place image";
+
+      const copy = document.createElement("div");
+      copy.className = "admin-record-copy";
+
+      const title = document.createElement("h3");
+      title.className = "admin-record-title";
+      title.textContent = place.title || "Untitled place";
+
+      const meta = document.createElement("p");
+      meta.className = "admin-record-meta";
+      const owner = userMap.get(place.owner_id);
+      const ownerName = owner
+        ? `${owner.first_name} ${owner.last_name}`.trim()
+        : "Unknown owner";
+      meta.textContent = `${formatAdminPrice(place.price)} • Hosted by ${ownerName}`;
+
+      copy.appendChild(title);
+      copy.appendChild(meta);
+
+      const actions = document.createElement("div");
+      actions.className = "admin-record-actions";
+
+      const viewLink = document.createElement("a");
+      viewLink.href = `place.html?id=${encodeURIComponent(place.id)}&admin=1`;
+      viewLink.className = "details-button";
+      viewLink.textContent = "View";
+      actions.appendChild(viewLink);
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "login-button profile-delete-btn";
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", async () => {
+        const confirmed = await confirmAction({
+          kicker: "Admin panel",
+          title: "Delete this place?",
+          message: `Delete "${title.textContent}"?`,
+          confirmLabel: "Delete",
+        });
+        if (!confirmed) return;
+        try {
+          await apiDeletePlace(place.id);
+          placesCollectionPromise = null;
+          reviewsCollectionPromise = null;
+          showAlert("admin-alert", "Place deleted successfully.", "success");
+          await Promise.all([loadAdminPanel(), loadPlaces(currentProfileId)]);
+        } catch (err) {
+          showAlert(
+            "admin-alert",
+            err.message || "Unable to delete this place.",
+            "error",
+          );
+        }
+      });
+      actions.appendChild(deleteButton);
+
+      article.appendChild(image);
+      article.appendChild(copy);
+      article.appendChild(actions);
+      return article;
+    }),
+  );
+}
+
+function renderAdminReviews(reviews, users = [], places = []) {
+  const container = document.getElementById("admin-reviews-list");
+  if (!container) return;
+
+  if (!reviews.length) {
+    renderEmptyState(container, "✍️", "No reviews", "No reviews were found.");
+    return;
+  }
+
+  const userMap = new Map((users || []).map((user) => [user.id, user]));
+  const placeMap = new Map((places || []).map((place) => [place.id, place]));
+  const sortedReviews = [...reviews].sort((a, b) =>
+    (b.created_at || "").localeCompare(a.created_at || ""),
+  );
+
+  container.replaceChildren(
+    ...sortedReviews.map((review) => {
+      const article = document.createElement("article");
+      article.className = "admin-record-card";
+      article.addEventListener("click", () => {
+        window.location.href = `place.html?id=${encodeURIComponent(review.place_id)}&admin=1#reviews`;
+      });
+
+      const copy = document.createElement("div");
+      copy.className = "admin-record-copy";
+
+      const author = userMap.get(review.user_id);
+      const place = placeMap.get(review.place_id);
+
+      const title = document.createElement("h3");
+      title.className = "admin-record-title";
+      title.textContent = `${author ? `${author.first_name} ${author.last_name}` : "Unknown user"} • ${"★".repeat(Math.max(0, Math.min(5, review.rating || 0)))}`;
+
+      const meta = document.createElement("p");
+      meta.className = "admin-record-meta";
+      meta.textContent = `${place?.title || "Unknown place"} • ${truncateText(
+        review.text || "",
+        140,
+      )}`;
+
+      copy.appendChild(title);
+      copy.appendChild(meta);
+
+      const actions = document.createElement("div");
+      actions.className = "admin-record-actions";
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "login-button profile-delete-btn";
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const confirmed = await confirmAction({
+          kicker: "Admin panel",
+          title: "Delete this review?",
+          message: "This review will be removed permanently.",
+          confirmLabel: "Delete",
+        });
+        if (!confirmed) return;
+        try {
+          await apiDeleteReview(review.id);
+          reviewsCollectionPromise = null;
+          showAlert("admin-alert", "Review deleted successfully.", "success");
+          await Promise.all([loadAdminPanel(), loadMyReviews()]);
+        } catch (err) {
+          showAlert(
+            "admin-alert",
+            err.message || "Unable to delete this review.",
+            "error",
+          );
+        }
+      });
+      actions.appendChild(deleteButton);
+
+      article.appendChild(copy);
+      article.appendChild(actions);
+      return article;
+    }),
+  );
+}
+
 function renderProfileSummary(user) {
   const fullName =
     `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Host";
@@ -421,6 +910,14 @@ function renderProfileSummary(user) {
   document.getElementById("profile-display-name").textContent = fullName;
   document.getElementById("profile-public-bio").textContent =
     user.bio || "This host has not added a profile description yet.";
+  const adminActions = document.getElementById("profile-admin-actions");
+  const banButton = document.getElementById("profile-ban-user");
+  if (adminActions && banButton) {
+    const canBan = isAdminViewer && !isOwnProfile;
+    adminActions.hidden = !canBan;
+    banButton.disabled = false;
+    banButton.textContent = user.is_banned ? "Unban user" : "Ban user";
+  }
   renderAvatar(user);
 }
 
@@ -589,6 +1086,19 @@ function openPlaceModal(place = null) {
   document.getElementById("place_price").value = place?.price ?? "";
   document.getElementById("place_latitude").value = place?.latitude ?? "";
   document.getElementById("place_longitude").value = place?.longitude ?? "";
+  const placeCityInput = document.getElementById("place_city");
+  if (placeCityInput) {
+    placeCityInput.value = "";
+  }
+  if (place?.latitude != null && place?.longitude != null && placeCityInput) {
+    reverseGeocode(Number(place.latitude), Number(place.longitude))
+      .then((location) => {
+        placeCityInput.value = location.label || "";
+      })
+      .catch(() => {
+        placeCityInput.value = "";
+      });
+  }
 
   const selected = new Set(
     (place?.amenities || []).map((item) =>
@@ -874,14 +1384,39 @@ async function handlePlaceSubmit(event) {
   event.preventDefault();
   showAlert("place-form-alert", "", "error");
 
+  const cityInput = document.getElementById("place_city");
+  const cityQuery = cityInput?.value.trim() || "";
+
+  let geocodedLocation = null;
+  try {
+    geocodedLocation = await forwardGeocode(cityQuery);
+  } catch (err) {
+    showAlert(
+      "place-form-alert",
+      err.message || "Unable to find this city.",
+      "error",
+    );
+    return;
+  }
+
+  document.getElementById("place_latitude").value = String(
+    geocodedLocation.latitude,
+  );
+  document.getElementById("place_longitude").value = String(
+    geocodedLocation.longitude,
+  );
+  if (cityInput) {
+    cityInput.value = geocodedLocation.label;
+  }
+
   const payload = {
     title: document.getElementById("place_title").value.trim(),
     description: document.getElementById("place_description").value.trim(),
     image_url: currentPlaceImageUrls[0] || "",
     image_urls: [...currentPlaceImageUrls],
     price: parseFloat(document.getElementById("place_price").value),
-    latitude: parseFloat(document.getElementById("place_latitude").value),
-    longitude: parseFloat(document.getElementById("place_longitude").value),
+    latitude: geocodedLocation.latitude,
+    longitude: geocodedLocation.longitude,
     amenities: Array.from(
       document.querySelectorAll("#modal-amenities-list input:checked"),
     ).map((input) => input.value),
@@ -896,7 +1431,7 @@ async function handlePlaceSubmit(event) {
   ) {
     showAlert(
       "place-form-alert",
-      "Please fill in all required fields and add at least one photo.",
+      "Please fill in all required fields, choose a city, and add at least one photo.",
       "error",
     );
     return;
@@ -934,7 +1469,13 @@ async function handlePlaceSubmit(event) {
 
 async function handleDeletePlace(placeId) {
   if (!isOwnProfile) return;
-  if (!window.confirm("Delete this place?")) return;
+  const confirmed = await confirmAction({
+    kicker: "Your places",
+    title: "Delete this place?",
+    message: "This action permanently removes the listing.",
+    confirmLabel: "Delete",
+  });
+  if (!confirmed) return;
 
   try {
     await apiDeletePlace(placeId);
@@ -945,6 +1486,41 @@ async function handleDeletePlace(placeId) {
     showAlert(
       "places-alert",
       err.message || "Unable to delete place.",
+      "error",
+    );
+  }
+}
+
+async function handleTogglePlaceVisibility(placeId, isHidden) {
+  if (!isOwnProfile) return;
+
+  const confirmMessage = isHidden
+    ? "Show this place again? It will be visible to users."
+    : "Hide this place? It will stay in your profile dashboard but disappear for other users.";
+  const confirmed = await confirmAction({
+    kicker: "Your places",
+    title: isHidden ? "Show this place?" : "Hide this place?",
+    message: confirmMessage,
+    confirmLabel: isHidden ? "Show place" : "Hide place",
+    confirmClassName: isHidden
+      ? "login-button"
+      : "login-button profile-delete-btn",
+  });
+  if (!confirmed) return;
+
+  try {
+    await apiUpdatePlace(placeId, { is_hidden: !isHidden });
+    placesCollectionPromise = null;
+    showAlert(
+      "places-alert",
+      isHidden ? "Place is visible again." : "Place hidden successfully.",
+      "success",
+    );
+    await loadPlaces(currentProfileId);
+  } catch (err) {
+    showAlert(
+      "places-alert",
+      err.message || "Unable to update place visibility.",
       "error",
     );
   }
@@ -986,6 +1562,13 @@ function renderPlaceCard(place) {
   badge.textContent = price;
   meta.appendChild(badge);
 
+  if (place.is_hidden) {
+    const visibilityBadge = document.createElement("span");
+    visibilityBadge.className = "badge badge-hidden";
+    visibilityBadge.textContent = "Hidden";
+    meta.appendChild(visibilityBadge);
+  }
+
   const desc = document.createElement("p");
   desc.className = "place-card-desc";
   desc.textContent = description;
@@ -1014,7 +1597,16 @@ function renderPlaceCard(place) {
     deleteButton.dataset.placeId = place.id;
     deleteButton.textContent = "Delete";
 
+    const visibilityButton = document.createElement("button");
+    visibilityButton.type = "button";
+    visibilityButton.className = "login-button";
+    visibilityButton.dataset.action = "toggle-place-visibility";
+    visibilityButton.dataset.placeId = place.id;
+    visibilityButton.dataset.placeHidden = String(Boolean(place.is_hidden));
+    visibilityButton.textContent = place.is_hidden ? "Show" : "Hide";
+
     actions.appendChild(editButton);
+    actions.appendChild(visibilityButton);
     actions.appendChild(deleteButton);
   }
 
@@ -1131,4 +1723,16 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function truncateText(value, maxLength = 120) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
+}
+
+function formatAdminPrice(value) {
+  const amount = Number.parseFloat(value);
+  if (Number.isNaN(amount)) return "No price";
+  return `$${amount.toFixed(0)} / night`;
 }

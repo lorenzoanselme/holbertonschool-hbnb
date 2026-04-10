@@ -5,7 +5,12 @@ Run: python3 seed.py
 
 import os
 
-from app import create_app
+from sqlalchemy import text
+
+from app import create_app, db
+from app.models.notification import Notification
+from app.models.place import Place
+from app.models.review import Review
 from app.services.facade import HBnBFacade
 
 app = create_app(os.getenv("FLASK_CONFIG", "config.DevelopmentConfig"))
@@ -52,25 +57,25 @@ USERS = [
 
 PLACES = [
     {
-        "title": "Cozy Studio in Paris",
-        "description": "A charming studio in the heart of Montmartre. Walk to the Sacre-Coeur in 5 minutes, enjoy local cafes and the vibrant artist scene.",
-        "price": 85,
-        "latitude": 48.8867,
-        "longitude": 2.3431,
-        "amenities": ["WiFi", "Kitchen", "Air conditioning"],
+        "title": "One-Bedroom in South Pigalle",
+        "description": "A well-kept one-bedroom with a bright living area, a compact open kitchen, and a layout that works well for a long weekend in central Paris.",
+        "price": 145,
+        "latitude": 48.8791,
+        "longitude": 2.3378,
+        "amenities": ["WiFi", "Kitchen", "Washer"],
         "owner_email": "admin@hbnb.io",
         "image_urls": [
-            "assets/demo-places/paris-studio.jpg",
             "assets/demo-places/paris-studio-2.jpg",
+            "assets/demo-places/brittany-tiny-house-2.jpg",
         ],
     },
     {
-        "title": "Beach House in Nice",
-        "description": "Stunning sea-view villa steps from the Promenade des Anglais. Private terrace, Mediterranean breeze, and a heated pool.",
-        "price": 220,
-        "latitude": 43.7102,
-        "longitude": 7.2620,
-        "amenities": ["WiFi", "Pool", "Parking", "Air conditioning"],
+        "title": "Lagoon Resort Villa",
+        "description": "A tropical waterfront villa with direct lagoon views, airy interiors, and a resort-style lounge space that feels designed for slow days by the water.",
+        "price": 360,
+        "latitude": 4.1755,
+        "longitude": 73.5093,
+        "amenities": ["WiFi", "Pool", "Air conditioning"],
         "owner_email": "camille@example.com",
         "image_urls": [
             "assets/demo-places/nice-beach-house.jpg",
@@ -78,25 +83,24 @@ PLACES = [
         ],
     },
     {
-        "title": "Mountain Chalet in Chamonix",
-        "description": "Rustic wooden chalet at 1 050 m altitude. Fireplace, ski-in/ski-out access, breathtaking views of Mont Blanc.",
-        "price": 175,
-        "latitude": 45.9237,
-        "longitude": 6.8694,
-        "amenities": ["WiFi", "Fireplace", "Parking", "Kitchen"],
+        "title": "Modern Pool Villa in Alicante",
+        "description": "A detached modern villa with full-height glass, a compact private pool, and clean outdoor lines. Best suited to guests looking for a quiet, design-forward stay.",
+        "price": 245,
+        "latitude": 38.3452,
+        "longitude": -0.4810,
+        "amenities": ["WiFi", "Pool", "Parking", "Kitchen"],
         "owner_email": "sarah@example.com",
         "image_urls": [
             "assets/demo-places/chamonix-chalet.jpg",
-            "assets/demo-places/chamonix-chalet-2.jpg",
         ],
     },
     {
-        "title": "Modern Loft in Bordeaux",
-        "description": "Industrial-style loft in the Saint-Pierre district. Exposed brick walls, high ceilings, and all the wine culture you can handle.",
-        "price": 95,
-        "latitude": 44.8378,
-        "longitude": -0.5792,
-        "amenities": ["WiFi", "Kitchen", "Washer"],
+        "title": "Townhouse Loft in Calgary",
+        "description": "A modern townhouse with a clean-lined kitchen, private garage access, and enough room for a proper city stay rather than a quick overnight stop.",
+        "price": 165,
+        "latitude": 51.0447,
+        "longitude": -114.0719,
+        "amenities": ["WiFi", "Kitchen", "Washer", "Parking"],
         "owner_email": "admin@hbnb.io",
         "image_urls": [
             "assets/demo-places/bordeaux-loft.jpg",
@@ -104,12 +108,12 @@ PLACES = [
         ],
     },
     {
-        "title": "Provençal Farmhouse",
-        "description": "Authentic mas in the Luberon with lavender fields, stone walls, and a private pool. Perfect for a peaceful countryside escape.",
-        "price": 310,
-        "latitude": 43.8585,
-        "longitude": 5.3676,
-        "amenities": ["Pool", "Parking", "Kitchen", "Air conditioning"],
+        "title": "Forest Cabin in the Veluwe",
+        "description": "A wood-clad cabin in a quiet forest park, with tall trees around the property and the kind of setting that makes sense for slow mornings and long walks.",
+        "price": 175,
+        "latitude": 52.1638,
+        "longitude": 5.8236,
+        "amenities": ["Parking", "Kitchen", "Fireplace", "WiFi"],
         "owner_email": "camille@example.com",
         "image_urls": [
             "assets/demo-places/provencal-farmhouse.jpg",
@@ -117,16 +121,16 @@ PLACES = [
         ],
     },
     {
-        "title": "Tiny House in Brittany",
-        "description": "Eco-friendly tiny house surrounded by pine forest, 10 minutes from the rugged Breton coastline.",
-        "price": 55,
-        "latitude": 48.2141,
-        "longitude": -2.9322,
-        "amenities": ["WiFi", "Kitchen"],
+        "title": "Balcony Apartment in Montreal",
+        "description": "A straightforward apartment in a mid-rise residential building, with a bright living area and a layout that works well for a city break or a week of remote work.",
+        "price": 90,
+        "latitude": 45.5019,
+        "longitude": -73.5674,
+        "amenities": ["WiFi", "Kitchen", "Washer", "Balcony"],
         "owner_email": "sarah@example.com",
         "image_urls": [
+            "assets/demo-places/chamonix-chalet-2.jpg",
             "assets/demo-places/brittany-tiny-house.jpg",
-            "assets/demo-places/brittany-tiny-house-2.jpg",
         ],
     },
 ]
@@ -134,35 +138,97 @@ PLACES = [
 REVIEWS = [
     {
         "user_email": "lucas@example.com",
-        "place_title": "Cozy Studio in Paris",
+        "place_title": "One-Bedroom in South Pigalle",
         "rating": 5,
-        "text": "Perfect location and a very cozy setup for a weekend in Paris.",
+        "text": "Comfortable, quiet at night, and easy to use as a base for walking around the 9th and Montmartre.",
     },
     {
         "user_email": "camille@example.com",
-        "place_title": "Cozy Studio in Paris",
+        "place_title": "One-Bedroom in South Pigalle",
         "rating": 4,
-        "text": "Great atmosphere and very clean. The neighborhood was the highlight.",
+        "text": "The layout is practical and the apartment feels lived in rather than staged. Good choice for a short Paris stay.",
     },
     {
         "user_email": "admin@hbnb.io",
-        "place_title": "Beach House in Nice",
+        "place_title": "Lagoon Resort Villa",
         "rating": 5,
-        "text": "The terrace and sea view make this place special. Excellent host.",
+        "text": "The lagoon view is exactly what you hope for, and the indoor lounge actually matches the setting instead of feeling generic.",
     },
     {
         "user_email": "lucas@example.com",
-        "place_title": "Mountain Chalet in Chamonix",
+        "place_title": "Modern Pool Villa in Alicante",
         "rating": 4,
-        "text": "Beautiful mountain experience with a warm chalet feel throughout.",
+        "text": "Very clean architecture, lots of daylight, and a pool that makes the place feel more private than most holiday rentals.",
     },
     {
         "user_email": "sarah@example.com",
-        "place_title": "Modern Loft in Bordeaux",
+        "place_title": "Townhouse Loft in Calgary",
         "rating": 5,
-        "text": "Stylish, comfortable, and close to everything. Would stay again.",
+        "text": "The kitchen is genuinely useful, the house feels new, and having the garage made arrival much easier.",
+    },
+    {
+        "user_email": "lucas@example.com",
+        "place_title": "Balcony Apartment in Montreal",
+        "rating": 4,
+        "text": "Simple but practical. Good natural light inside, and the building felt like a normal residential address rather than a tourist setup.",
+    },
+    {
+        "user_email": "camille@example.com",
+        "place_title": "Forest Cabin in the Veluwe",
+        "rating": 5,
+        "text": "Exactly the kind of quiet cabin stay you want for a reset weekend. The wooded setting is what makes it memorable.",
     },
 ]
+
+LEGACY_DEMO_TITLES = {
+    "Cozy Studio in Paris",
+    "Beach House in Nice",
+    "Mountain Chalet in Chamonix",
+    "Modern Loft in Bordeaux",
+    "Provençal Farmhouse",
+    "Tiny House in Brittany",
+    "Montmartre Artist Flat",
+    "Sunlit Flat in Montmartre",
+    "One-Bedroom in South Pigalle",
+    "Seafront Resort Suite",
+    "Poolside Glass Villa",
+    "Mediterranean Glass Villa",
+    "Modern Pool Villa in Alicante",
+    "Design Townhouse with Chef Kitchen",
+    "Contemporary Townhouse Loft",
+    "Townhouse Loft in Calgary",
+    "Woodland Cottage Escape",
+    "Forest Cabin Retreat",
+    "Forest Cabin in the Veluwe",
+    "Balcony Apartment Residence",
+    "Urban Balcony Apartment",
+    "Balcony Apartment in Montreal",
+    "Lagoon Resort Villa",
+}
+
+
+def reset_demo_places():
+    demo_titles = LEGACY_DEMO_TITLES | {place["title"] for place in PLACES}
+    places = Place.query.filter(Place.title.in_(demo_titles)).all()
+    if not places:
+        return 0
+
+    place_ids = [place.id for place in places]
+    review_ids = [
+        review.id for review in Review.query.filter(Review.place_id.in_(place_ids)).all()
+    ]
+
+    Notification.query.filter(
+        (Notification.place_id.in_(place_ids)) | (Notification.review_id.in_(review_ids))
+    ).delete(synchronize_session=False)
+    Review.query.filter(Review.place_id.in_(place_ids)).delete(synchronize_session=False)
+    db.session.execute(
+        text("DELETE FROM place_amenity WHERE place_id = ANY(:place_ids)"),
+        {"place_ids": place_ids},
+    )
+    Place.query.filter(Place.id.in_(place_ids)).delete(synchronize_session=False)
+    db.session.commit()
+    return len(place_ids)
 
 
 def ensure_user(user_data):
@@ -201,6 +267,10 @@ with app.app_context():
         if name not in amenity_map:
             amenity_map[name] = facade.create_amenity({"name": name})
             print(f"  Created amenity: {name}")
+
+    deleted_places = reset_demo_places()
+    if deleted_places:
+        print(f"Reset demo places: removed {deleted_places} old listings")
 
     print("Seeding places...")
     place_map = {place.title: place for place in facade.get_all_places()}

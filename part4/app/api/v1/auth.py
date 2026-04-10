@@ -83,6 +83,7 @@ def serialize_user(user):
         "last_name": user.last_name,
         "email": user.email,
         "is_admin": user.is_admin,
+        "is_banned": user.is_banned,
     }
 
 
@@ -103,6 +104,10 @@ class Login(Resource):
             }, 429
 
         user = facade.get_user_by_email(email)
+
+        if user and user.is_banned:
+            audit_event("auth.login.blocked_banned", outcome="denied", email=email)
+            return {"error": "Your account has been banned."}, 403
 
         if not user or not user.verify_password(credentials["password"]):
             audit_event("auth.login.failed", outcome="denied", email=email)
@@ -178,6 +183,11 @@ class CurrentUser(Resource):
         user = facade.get_user(get_jwt_identity())
         if not user:
             return {"error": "User not found"}, 404
+        if user.is_banned:
+            response = jsonify({"error": "Your account has been banned."})
+            unset_jwt_cookies(response)
+            response.delete_cookie("token", path="/")
+            return response, 403
         return {"user": serialize_user(user)}, 200
 
 

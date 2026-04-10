@@ -10,7 +10,7 @@ from flask_jwt_extended.exceptions import JWTExtendedException
 from flask_restx import Api
 from flask_sqlalchemy import SQLAlchemy
 from jwt import ExpiredSignatureError, InvalidTokenError
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -45,6 +45,10 @@ def ensure_sqlite_columns(app):
                 "ALTER TABLE users ADD COLUMN profile_picture_url "
                 "VARCHAR(500) NOT NULL DEFAULT ''"
             )
+        if "is_banned" not in columns:
+            safe_execute(
+                "ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT 0"
+            )
 
         review_columns = {
             row[1] for row in connection.execute(text("PRAGMA table_info(reviews)"))
@@ -71,12 +75,46 @@ def ensure_sqlite_columns(app):
                 "ALTER TABLE places ADD COLUMN image_urls_json TEXT "
                 "NOT NULL DEFAULT '[]'"
             )
+        if "is_hidden" not in place_columns:
+            safe_execute(
+                "ALTER TABLE places ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT 0"
+            )
+
+
+def ensure_shared_columns():
+    inspector = inspect(db.engine)
+    user_columns = {column["name"] for column in inspector.get_columns("users")}
+    dialect = db.engine.dialect.name
+    with db.engine.begin() as connection:
+        if "is_banned" not in user_columns:
+            if dialect == "sqlite":
+                statement = (
+                    "ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT 0"
+                )
+            else:
+                statement = (
+                    "ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            connection.execute(text(statement))
+
+        place_columns = {column["name"] for column in inspector.get_columns("places")}
+        if "is_hidden" not in place_columns:
+            if dialect == "sqlite":
+                statement = (
+                    "ALTER TABLE places ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT 0"
+                )
+            else:
+                statement = (
+                    "ALTER TABLE places ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            connection.execute(text(statement))
 
 
 def initialize_database(app):
     with app.app_context():
         db.create_all()
         ensure_sqlite_columns(app)
+        ensure_shared_columns()
         db.session.execute(
             text("DELETE FROM revoked_tokens WHERE expires_at < :now"),
             {"now": datetime.utcnow()},
@@ -92,6 +130,7 @@ def create_app(config_class="config.Config"):
     from app.api.v1.reviews import api as reviews_ns
     from app.api.v1.users import api as users_ns
     from app.models.revoked_token import RevokedToken
+    from app.services import facade
 
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -140,6 +179,11 @@ def create_app(config_class="config.Config"):
 
     @jwt.token_in_blocklist_loader
     def is_token_revoked(_jwt_header, jwt_payload):
+        user_id = jwt_payload.get("sub")
+        if user_id:
+            user = facade.get_user(user_id)
+            if user and getattr(user, "is_banned", False):
+                return True
         jti = jwt_payload.get("jti")
         if not jti:
             return False

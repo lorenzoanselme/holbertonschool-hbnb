@@ -31,6 +31,7 @@ ADMIN_EDITABLE_FIELDS = {
     "email",
     "password",
     "is_admin",
+    "is_banned",
     "bio",
     "profile_picture_url",
 }
@@ -79,6 +80,7 @@ def serialize_user(user, include_private=False):
     if include_private:
         payload["email"] = user.email
         payload["is_admin"] = user.is_admin
+        payload["is_banned"] = user.is_banned
     return payload
 
 
@@ -148,6 +150,8 @@ class UsersItem(Resource):
             current_user_id = None
             claims = {}
         include_private = current_user_id == user_id or claims.get("is_admin", False)
+        if user.is_banned and not include_private:
+            return {"error": "User not found"}, 404
         return serialize_user(user, include_private=include_private), 200
 
     @jwt_required()
@@ -201,6 +205,36 @@ class UsersItem(Resource):
         if not user:
             return {"error": "User not found"}, 404
         return user.to_dict(), 200
+
+    @jwt_required()
+    def delete(self, user_id):
+        claims = get_jwt()
+        if not claims.get("is_admin"):
+            return {"error": "Admin privileges required"}, 403
+
+        current_user_id = get_jwt_identity()
+        if current_user_id == user_id:
+            return {"error": "You cannot ban your own account"}, 400
+
+        user = facade.get_user(user_id)
+        if not user:
+            return {"error": "User not found"}, 404
+
+        if user.is_banned:
+            return {"message": "User is already banned"}, 200
+
+        try:
+            updated_user = facade.update_user(user_id, {"is_banned": True})
+        except ValueError as e:
+            return {"error": str(e)}, 400
+
+        audit_event(
+            "user.banned",
+            user_id=current_user_id,
+            target_user_id=user_id,
+            target_email=user.email,
+        )
+        return serialize_user(updated_user, include_private=True), 200
 
 
 @api.route("/<string:user_id>/photo")

@@ -4,7 +4,13 @@ from collections import defaultdict, deque
 from datetime import datetime, timedelta
 
 from flask import request
-from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
+from flask_jwt_extended import (
+    get_jwt,
+    get_jwt_identity,
+    jwt_required,
+    verify_jwt_in_request,
+)
+from flask_jwt_extended.exceptions import JWTExtendedException
 from flask_restx import Namespace, Resource, fields
 from werkzeug.utils import secure_filename
 
@@ -50,6 +56,14 @@ def enforce_upload_rate_limit(scope, identifier):
     return None
 
 
+def has_admin_scope(claims):
+    return bool(claims.get("is_admin")) and request.args.get("scope") == "admin"
+
+
+def has_owner_scope():
+    return request.args.get("scope") == "owner"
+
+
 place_model = api.model(
     "Place",
     {
@@ -62,6 +76,7 @@ place_model = api.model(
         "price": fields.Float(required=True, description="Price per night"),
         "latitude": fields.Float(required=True, description="Latitude of the place"),
         "longitude": fields.Float(required=True, description="Longitude of the place"),
+        "is_hidden": fields.Boolean(description="Whether the place is hidden"),
         "amenities": fields.List(
             fields.String, required=True, description="List of amenities IDs"
         ),
@@ -80,6 +95,7 @@ place_update_model = api.model(
         "price": fields.Float(description="Price per night"),
         "latitude": fields.Float(description="Latitude of the place"),
         "longitude": fields.Float(description="Longitude of the place"),
+        "is_hidden": fields.Boolean(description="Whether the place is hidden"),
         "amenities": fields.List(fields.String, description="List of amenities IDs"),
     },
 )
@@ -105,7 +121,25 @@ class PlaceList(Resource):
     @api.response(200, "List of places retrieved successfully")
     def get(self):
         """Retrieve a list of all places"""
+        try:
+            verify_jwt_in_request(optional=True)
+            claims = get_jwt() or {}
+        except JWTExtendedException:
+            claims = {}
+        is_admin = has_admin_scope(claims)
+        current_user_id = get_jwt_identity() if claims else None
+        owner_scope = has_owner_scope() and bool(current_user_id)
         places = facade.get_all_places()
+        if not is_admin:
+            places = [
+                place
+                for place in places
+                if not getattr(place.owner, "is_banned", False)
+                and (
+                    not getattr(place, "is_hidden", False)
+                    or (owner_scope and place.owner_id == current_user_id)
+                )
+            ]
         return [
             p.to_dict(include_reviews=False, include_amenities=False) for p in places
         ], 200
@@ -119,6 +153,22 @@ class PlaceResource(Resource):
         """Get place details by ID"""
         place = facade.get_place(place_id)
         if not place:
+            return {"error": "Place not found"}, 404
+        try:
+            verify_jwt_in_request(optional=True)
+            claims = get_jwt() or {}
+            current_user_id = get_jwt_identity()
+        except JWTExtendedException:
+            claims = {}
+            current_user_id = None
+        is_admin = has_admin_scope(claims)
+        if getattr(place.owner, "is_banned", False) and not is_admin:
+            return {"error": "Place not found"}, 404
+        if (
+            getattr(place, "is_hidden", False)
+            and not is_admin
+            and place.owner_id != current_user_id
+        ):
             return {"error": "Place not found"}, 404
         return place.to_dict(), 200
 
@@ -180,7 +230,25 @@ class PlaceReviews(Resource):
         place = facade.get_place(place_id)
         if not place:
             return {"error": "Place not found"}, 404
+        try:
+            verify_jwt_in_request(optional=True)
+            claims = get_jwt() or {}
+            current_user_id = get_jwt_identity()
+        except JWTExtendedException:
+            claims = {}
+            current_user_id = None
+        is_admin = has_admin_scope(claims)
+        if getattr(place.owner, "is_banned", False) and not is_admin:
+            return {"error": "Place not found"}, 404
+        if getattr(place, "is_hidden", False) and not is_admin and place.owner_id != current_user_id:
+            return {"error": "Place not found"}, 404
         reviews = facade.get_reviews_by_place(place_id)
+        if not is_admin:
+            reviews = [
+                review
+                for review in reviews
+                if not getattr(review.user, "is_banned", False)
+            ]
         return [r.to_dict() for r in reviews], 200
 
 

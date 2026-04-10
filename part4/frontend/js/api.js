@@ -61,6 +61,7 @@ async function request(endpoint, options = {}) {
       response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers,
+        cache: isIdempotent ? "no-store" : options.cache,
         credentials: "include",
         signal: controller.signal,
       });
@@ -197,10 +198,20 @@ export async function apiGetUser(id) {
   return request(`/users/${id}`);
 }
 
+export async function apiGetUsers() {
+  return request("/users/");
+}
+
 export async function apiUpdateUser(id, data) {
   return request(`/users/${id}`, {
     method: "PUT",
     body: JSON.stringify(data),
+  });
+}
+
+export async function apiBanUser(id) {
+  return request(`/users/${id}`, {
+    method: "DELETE",
   });
 }
 
@@ -222,12 +233,19 @@ export async function apiUploadPlacePhoto(file) {
   });
 }
 
-export async function apiGetPlaces() {
-  return request("/places/");
+export async function apiGetPlaces(options = {}) {
+  const scope = options.adminScope
+    ? "admin"
+    : options.ownerScope
+      ? "owner"
+      : "";
+  const query = scope ? `?scope=${scope}` : "";
+  return request(`/places/${query}`);
 }
 
-export async function apiGetPlace(id) {
-  return request(`/places/${id}`);
+export async function apiGetPlace(id, options = {}) {
+  const query = options.adminScope ? "?scope=admin" : "";
+  return request(`/places/${id}${query}`);
 }
 
 export async function apiCreatePlace(data) {
@@ -263,12 +281,20 @@ export async function apiCreateReview({ place_id, text, rating }) {
   });
 }
 
-export async function apiGetPlaceReviews(placeId) {
-  return request(`/places/${placeId}/reviews`);
+export async function apiGetPlaceReviews(placeId, options = {}) {
+  const query = options.adminScope ? "?scope=admin" : "";
+  return request(`/places/${placeId}/reviews${query}`);
 }
 
-export async function apiGetReviews() {
-  return request("/reviews/");
+export async function apiGetReviews(options = {}) {
+  const query = options.adminScope ? "?scope=admin" : "";
+  return request(`/reviews/${query}`);
+}
+
+export async function apiDeleteReview(reviewId) {
+  return request(`/reviews/${reviewId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function apiRespondToReview(reviewId, response) {

@@ -102,17 +102,21 @@ export function updateNavbar() {
   const logoutBtn = document.getElementById("nav-logout");
   const profileLink = document.getElementById("nav-profile");
   const addPlaceLink = document.getElementById("nav-add-place");
+  const adminPanelBtn = document.getElementById("nav-admin-panel");
+  const currentUser = readStoredUser();
 
   if (isLoggedIn()) {
     if (loginLink) loginLink.hidden = true;
     if (logoutBtn) logoutBtn.hidden = false;
     if (profileLink) profileLink.hidden = false;
     if (addPlaceLink) addPlaceLink.hidden = false;
+    if (adminPanelBtn) adminPanelBtn.hidden = !currentUser?.is_admin;
   } else {
     if (loginLink) loginLink.hidden = false;
     if (logoutBtn) logoutBtn.hidden = true;
     if (profileLink) profileLink.hidden = true;
     if (addPlaceLink) addPlaceLink.hidden = true;
+    if (adminPanelBtn) adminPanelBtn.hidden = true;
   }
 }
 

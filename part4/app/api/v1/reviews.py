@@ -2,7 +2,13 @@ from collections import defaultdict, deque
 from datetime import datetime, timedelta
 
 from flask import request
-from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
+from flask_jwt_extended import (
+    get_jwt,
+    get_jwt_identity,
+    jwt_required,
+    verify_jwt_in_request,
+)
+from flask_jwt_extended.exceptions import JWTExtendedException
 from flask_restx import Namespace, Resource, fields
 
 from app.services import facade
@@ -70,6 +76,10 @@ def enforce_rate_limit(scope, identifier):
     return None
 
 
+def has_admin_scope(claims):
+    return bool(claims.get("is_admin")) and request.args.get("scope") == "admin"
+
+
 @api.route("/")
 class ReviewList(Resource):
     @jwt_required()
@@ -109,7 +119,26 @@ class ReviewList(Resource):
 
     @api.response(200, "List of reviews retrieved successfully")
     def get(self):
+        try:
+            verify_jwt_in_request(optional=True)
+            claims = get_jwt() or {}
+            current_user_id = get_jwt_identity()
+        except JWTExtendedException:
+            claims = {}
+            current_user_id = None
+        is_admin = has_admin_scope(claims)
         reviews = facade.get_all_reviews()
+        if not is_admin:
+            reviews = [
+                review
+                for review in reviews
+                if not getattr(review.user, "is_banned", False)
+                and not getattr(review.place.owner, "is_banned", False)
+                and (
+                    not getattr(review.place, "is_hidden", False)
+                    or review.place.owner_id == current_user_id
+                )
+            ]
         return [r.to_dict() for r in reviews], 200
 
 
@@ -120,6 +149,26 @@ class ReviewResource(Resource):
     def get(self, review_id):
         review = facade.get_review(review_id)
         if not review:
+            return {"error": "Review not found"}, 404
+        try:
+            verify_jwt_in_request(optional=True)
+            claims = get_jwt() or {}
+            current_user_id = get_jwt_identity()
+        except JWTExtendedException:
+            claims = {}
+            current_user_id = None
+        is_admin = has_admin_scope(claims)
+        if (
+            (
+                getattr(review.user, "is_banned", False)
+                or getattr(review.place.owner, "is_banned", False)
+                or (
+                    getattr(review.place, "is_hidden", False)
+                    and review.place.owner_id != current_user_id
+                )
+            )
+            and not is_admin
+        ):
             return {"error": "Review not found"}, 404
         return review.to_dict(), 200
 

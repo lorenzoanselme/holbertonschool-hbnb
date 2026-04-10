@@ -94,6 +94,7 @@ class HBnBFacade:
             latitude=place_data["latitude"],
             longitude=place_data["longitude"],
             owner_id=owner_id,
+            is_hidden=place_data.get("is_hidden", False),
         )
 
         setattr(place, "amenities", cast(list[Amenity], amenities))

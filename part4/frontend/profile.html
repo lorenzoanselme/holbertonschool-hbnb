@@ -55,6 +55,13 @@
                             >My Profile</a
                         >
                         <a
+                            href="profile.html?admin=1"
+                            id="nav-admin-panel"
+                            class="login-button"
+                            hidden
+                            >Admin Panel</a
+                        >
+                        <a
                             href="login.html"
                             id="login-link"
                             class="login-button"
@@ -109,6 +116,19 @@
                                     >
                                         Loading profile…
                                     </p>
+                                    <div
+                                        id="profile-admin-actions"
+                                        class="profile-admin-actions"
+                                        hidden
+                                    >
+                                        <button
+                                            type="button"
+                                            id="profile-ban-user"
+                                            class="login-button profile-delete-btn"
+                                        >
+                                            Ban user
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -211,10 +231,6 @@
                                     id="profile_picture_url"
                                     name="profile_picture_url"
                                 />
-                                <p class="profile-photo-hint">
-                                    Click the photo to choose an image from your
-                                    device.
-                                </p>
 
                                 <div class="form-group">
                                     <label for="bio">Profile Description</label>
@@ -285,7 +301,83 @@
                         </div>
                     </div>
                 </section>
+
             </main>
+
+            <div id="admin-modal" class="modal-overlay" hidden>
+                <div class="modal-card glass admin-modal-card">
+                    <div class="profile-section-header profile-modal-header">
+                        <div>
+                            <p class="section-title profile-title-kicker">
+                                Admin
+                            </p>
+                            <h2 class="profile-section-title">Admin panel</h2>
+                        </div>
+                        <button
+                            type="button"
+                            id="close-admin-modal"
+                            class="login-button"
+                        >
+                            Close
+                        </button>
+                    </div>
+
+                    <div id="admin-alert" class="alert" role="alert"></div>
+
+                    <div class="admin-tabs" role="tablist" aria-label="Admin views">
+                        <button
+                            type="button"
+                            class="login-button admin-tab is-active"
+                            data-admin-tab="users"
+                            aria-pressed="true"
+                        >
+                            Users
+                        </button>
+                        <button
+                            type="button"
+                            class="login-button admin-tab"
+                            data-admin-tab="places"
+                            aria-pressed="false"
+                        >
+                            Places
+                        </button>
+                        <button
+                            type="button"
+                            class="login-button admin-tab"
+                            data-admin-tab="reviews"
+                            aria-pressed="false"
+                        >
+                            Reviews
+                        </button>
+                    </div>
+
+                    <div
+                        id="admin-users-panel"
+                        class="admin-panel-content"
+                        data-admin-panel="users"
+                    >
+                        <div id="admin-users-list" class="admin-record-list"></div>
+                    </div>
+
+                    <div
+                        id="admin-places-panel"
+                        class="admin-panel-content"
+                        data-admin-panel="places"
+                        hidden
+                    >
+                        <div id="admin-places-list" class="admin-record-list"></div>
+                    </div>
+
+                    <div
+                        id="admin-reviews-panel"
+                        class="admin-panel-content"
+                        data-admin-panel="reviews"
+                        hidden
+                    >
+                        <div id="admin-reviews-list" class="admin-record-list"></div>
+                    </div>
+                </div>
+            </div>
 
             <div id="place-modal" class="modal-overlay" hidden>
                 <div class="modal-card glass">
@@ -392,24 +484,17 @@
                                 />
                             </div>
                             <div class="form-group">
-                                <label for="place_latitude">Latitude</label>
+                                <label for="place_city">City</label>
                                 <input
-                                    type="number"
-                                    id="place_latitude"
-                                    step="any"
-                                    required
-                                />
-                            </div>
-                            <div class="form-group">
-                                <label for="place_longitude">Longitude</label>
-                                <input
-                                    type="number"
-                                    id="place_longitude"
-                                    step="any"
+                                    type="text"
+                                    id="place_city"
+                                    placeholder="Paris, France"
                                     required
                                 />
                             </div>
                         </div>
+                        <input type="hidden" id="place_latitude" />
+                        <input type="hidden" id="place_longitude" />
 
                         <div class="form-group">
                             <label>Amenities</label>
@@ -495,6 +580,48 @@
                             class="login-button profile-delete-btn"
                         >
                             Delete all
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="action-confirm-modal" class="modal-overlay" hidden>
+                <div class="modal-card glass confirm-modal-card">
+                    <div class="profile-section-header profile-modal-header">
+                        <div>
+                            <p
+                                id="action-confirm-kicker"
+                                class="section-title profile-title-kicker"
+                            >
+                                Confirm action
+                            </p>
+                            <h2
+                                id="action-confirm-title"
+                                class="profile-section-title"
+                            >
+                                Are you sure?
+                            </h2>
+                        </div>
+                    </div>
+
+                    <p id="action-confirm-copy" class="confirm-modal-copy">
+                        Please confirm this action.
+                    </p>
+
+                    <div class="confirm-modal-actions">
+                        <button
+                            type="button"
+                            id="action-confirm-cancel"
+                            class="login-button"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            id="action-confirm-submit"
+                            class="login-button profile-delete-btn"
+                        >
+                            Confirm
                         </button>
                     </div>
                 </div>

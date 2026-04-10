@@ -22,6 +22,7 @@ let currentPlaceId = null;
 let selectedRating = 0;
 let currentIsOwner = false;
 let currentPlaceMap = null;
+let currentAdminScope = false;
 
 // ──────────────────────────────────────────────────
 // Init
@@ -34,6 +35,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
   currentPlaceId = getPlaceIdFromURL();
+  currentAdminScope =
+    new URLSearchParams(window.location.search).get("admin") === "1";
 
   if (!currentPlaceId) {
     showPlaceError("No place ID provided.");
@@ -66,7 +69,7 @@ function checkAuthentication() {
 
 async function fetchPlaceDetails(placeId) {
   try {
-    const place = await apiGetPlace(placeId);
+    const place = await apiGetPlace(placeId, { adminScope: currentAdminScope });
     if (!place) return;
 
     currentIsOwner = getCurrentUserId() === place.owner_id;
@@ -492,7 +495,7 @@ async function loadReviews(placeId, embeddedReviews) {
 
     let reviews = hasFullObjects
       ? embeddedReviews
-      : await apiGetPlaceReviews(placeId);
+      : await apiGetPlaceReviews(placeId, { adminScope: currentAdminScope });
 
     if (!Array.isArray(reviews)) reviews = [];
 

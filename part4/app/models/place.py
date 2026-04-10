@@ -28,6 +28,7 @@ class Place(BaseModel):
     price = db.Column(db.Float, nullable=False)
     latitude = db.Column(db.Float, nullable=False)
     longitude = db.Column(db.Float, nullable=False)
+    is_hidden = db.Column(db.Boolean, default=False, nullable=False)
     owner_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
 
     reviews = db.relationship("Review", backref="place", lazy=True)
@@ -43,6 +44,7 @@ class Place(BaseModel):
         owner_id,
         image_url="",
         image_urls=None,
+        is_hidden=False,
     ):
         super().__init__()
         self.title = title
@@ -51,6 +53,7 @@ class Place(BaseModel):
         self.price = price
         self.latitude = latitude
         self.longitude = longitude
+        self.is_hidden = is_hidden
         self.owner_id = owner_id
 
     @validates("title")
@@ -141,6 +144,10 @@ class Place(BaseModel):
             raise ValueError("longitude must be between -180 and 180")
         return value
 
+    @validates("is_hidden")
+    def validate_is_hidden(self, _key, value):
+        return bool(value)
+
     def to_dict(self, include_reviews=True, include_amenities=True):
         image_urls = self.get_image_urls()
         return {
@@ -152,6 +159,7 @@ class Place(BaseModel):
             "price": self.price,
             "latitude": self.latitude,
             "longitude": self.longitude,
+            "is_hidden": self.is_hidden,
             "owner_id": self.owner_id,
             "created_at": self._serialize_datetime(self.created_at),
             "updated_at": self._serialize_datetime(self.updated_at),

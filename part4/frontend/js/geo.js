@@ -84,6 +84,58 @@ export async function reverseGeocode(latitude, longitude) {
   return result;
 }
 
+export async function forwardGeocode(query) {
+  const normalizedQuery = String(query || "").trim();
+  if (!normalizedQuery) {
+    throw new Error("Please enter a city.");
+  }
+
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    q: normalizedQuery,
+    limit: "1",
+    addressdetails: "1",
+  });
+
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+    {
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("City search failed.");
+  }
+
+  const body = await response.json();
+  const match = Array.isArray(body) ? body[0] : null;
+  if (!match) {
+    throw new Error("City not found. Try a clearer search like 'Paris, France'.");
+  }
+
+  const address = match.address || {};
+  const city =
+    address.city ||
+    address.town ||
+    address.village ||
+    address.municipality ||
+    address.county ||
+    match.name ||
+    normalizedQuery;
+  const country = address.country || "";
+
+  return {
+    latitude: Number.parseFloat(match.lat),
+    longitude: Number.parseFloat(match.lon),
+    city,
+    country,
+    label: country ? `${city}, ${country}` : city,
+  };
+}
+
 function getReverseCacheKey(latitude, longitude) {
   return `${GEO_CACHE_PREFIX}${latitude.toFixed(3)},${longitude.toFixed(3)}`;
 }

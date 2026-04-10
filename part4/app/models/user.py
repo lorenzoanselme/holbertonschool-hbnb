@@ -14,6 +14,7 @@ class User(BaseModel):
     email = db.Column(db.String(120), nullable=False, unique=True)
     password = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    is_banned = db.Column(db.Boolean, default=False, nullable=False)
     bio = db.Column(db.Text, default="", nullable=False)
     profile_picture_url = db.Column(db.String(500), default="", nullable=False)
 
@@ -27,6 +28,7 @@ class User(BaseModel):
         email,
         password,
         is_admin=False,
+        is_banned=False,
         bio="",
         profile_picture_url="",
     ):
@@ -35,6 +37,7 @@ class User(BaseModel):
         self.last_name = last_name
         self.email = email
         self.is_admin = is_admin
+        self.is_banned = is_banned
         self.bio = bio
         self.profile_picture_url = profile_picture_url
         self.hash_password(password)
@@ -81,10 +84,10 @@ class User(BaseModel):
             raise ValueError("invalid email format")
         return value
 
-    @validates("is_admin")
-    def validate_is_admin(self, _key, value):
+    @validates("is_admin", "is_banned")
+    def validate_flags(self, key, value):
         if not isinstance(value, bool):
-            raise ValueError("is_admin must be a boolean")
+            raise ValueError(f"{key} must be a boolean")
         return value
 
     @validates("bio")
@@ -116,6 +119,7 @@ class User(BaseModel):
             "last_name": self.last_name,
             "email": self.email,
             "is_admin": self.is_admin,
+            "is_banned": self.is_banned,
             "bio": self.bio,
             "profile_picture_url": self.profile_picture_url,
             "created_at": self._serialize_datetime(self.created_at),
